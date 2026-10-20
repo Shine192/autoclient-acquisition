@@ -3,7 +3,7 @@
 This command intentionally is not run by the workspace against the Mac folder.
 It preserves the installation and switches only its sender to draft-only.
 """
-import argparse,base64,fcntl,json,os,shutil,sqlite3,subprocess,sys
+import argparse,base64,fcntl,json,os,re,shutil,sqlite3,subprocess,sys
 from datetime import datetime,timezone
 from pathlib import Path
 from cryptography.fernet import Fernet
@@ -13,9 +13,28 @@ from .cli import REPOSITORY,policy_summary
 from .worker import settings_hash
 
 def gh(args,data=None):
-    result=subprocess.run(['gh',*args],input=data,text=True,capture_output=True)
-    if result.returncode:raise ValueError('GitHub operation failed. Use an owner/collaborator login with repository, workflow, Actions, variable and secret write access.')
+    operation='repository API' if args[0]=='api' else ' '.join(args[:2])
+    try:result=subprocess.run(['gh',*args],input=data,text=True,capture_output=True,timeout=45)
+    except subprocess.TimeoutExpired:raise ValueError('GitHub '+operation+' timed out; setup stopped safely.') from None
+    if result.returncode:
+        status=re.search(r'HTTP (\d{3})\b',result.stderr or '')
+        detail=' (HTTP '+status.group(1)+')' if status else ''
+        raise ValueError('GitHub '+operation+' failed'+detail+'. Check connection and access for this operation. Credentials and response bodies are not printed.')
     return result.stdout
+
+def workflow_switch(enabled):
+    """Retries are harmless when the previous attempt already paused the timer."""
+    def current():
+        state=json.loads(gh(['api','repos/'+REPOSITORY+'/actions/workflows/outreach.yml']))['state']
+        if state!='active' and not state.startswith('disabled_'):
+            raise ValueError('Outreach workflow is unavailable; check its state before handover.')
+        return state=='active'
+    if current()==enabled:return
+    try:gh(['workflow','enable' if enabled else 'disable','outreach.yml','--repo',REPOSITORY])
+    except ValueError:
+        # Another setup may have reached the desired state after the first read.
+        if current()!=enabled:raise
+    if current()!=enabled:raise ValueError('Outreach workflow did not reach the requested state; setup stopped.')
 
 def prepare(root):
     root=Path(root).expanduser().resolve();handles=[]
@@ -25,7 +44,7 @@ def prepare(root):
     if 'from hosted_sender.cli import main' not in base64.b64decode(current['content']).decode():raise ValueError('Upload and merge the tested sender update before handover')
     # Stop the obsolete scheduler first; no code/credentials/history is deleted.
     gh(['variable','set','SHINE_DELIVERY_ENABLED','--repo',REPOSITORY,'--body','false'])
-    gh(['workflow','disable','outreach.yml','--repo',REPOSITORY])
+    workflow_switch(False)
     backup=root/'update-backups'/('github-handover-'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ'))
     try:
         for name in ('worker.lock','panel.lock','delivery.lock','automatic-research.lock'):
@@ -59,7 +78,7 @@ def prepare(root):
         token=gh(['auth','token']).strip()
         initialize(REPOSITORY,key,API(REPOSITORY,token),records)
         for name,value in secret_values.items():gh(['secret','set',name,'--repo',REPOSITORY],value)
-        gh(['workflow','enable','outreach.yml','--repo',REPOSITORY])
+        workflow_switch(True)
         private_json(backup/'handover-result.json',{'history_imported':True,'mac_sender':'draft-only','hosted_sender':'paused','policy_hash':settings_hash(records['settings']['data'])})
         return {'prepared':True,'mac_sender':'draft-only','hosted_sender':'paused','backup':str(backup),'next':'Run dry-run, self-test, verify-test and activate from GitHub Actions; then choose campaign dates/target and enable the delivery variable.'}
     finally:

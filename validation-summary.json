@@ -1,7 +1,7 @@
 {
-  "offline_tests": 325,
+  "offline_tests": 332,
   "passed": true,
-  "live_github_deployed": false,
+  "live_github_deployed": true,
   "live_hosted_test_completed": false,
   "mac_installation_modified": false,
   "cloudflare_deferred": true,
@@ -9,5 +9,8 @@
   "connected_account": "Shine192",
   "repository_push_permission": true,
   "repository_id": 1166990339,
-  "transfer_verified": true
+  "transfer_verified": true,
+  "hosted_ci_previous_version_passed": true,
+  "handover_retry_preflight_passed": true,
+  "production_activated": false
 }
