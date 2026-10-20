@@ -135,9 +135,15 @@ class Worker:
         self.report('gmail_identity')
         if self.gmail.identity() != cfg['sender'].lower(): raise ValueError('Wrong Gmail sender')
         self.sync_leads()
+        self.report('receipt_sync')
+        for saved in self.q.db.list('outbox'):
+            if saved['state']=='sent' and saved.get('mode')!='test' and self.sync_one(saved['id']) is False:
+                return {'state':'notion-sync-pending'}
         self.report('reply_check')
         self.poll()
         if self.q.control().get('active_attempt'): raise ValueError('Reconcile unresolved send first')
+        if any(saved.get('notion_sync_pending') for saved in self.q.db.list('outbox') if saved['state']=='sent' and saved.get('mode')!='test'):
+            return {'state':'notion-sync-pending'}
         for item in sorted(self.q.db.list('outbox'), key=lambda x: x.get('due_at', 0)):
             if item['state'] != 'queued' or item.get('mode') == 'test' or item['due_at'] > now: continue
             with tempfile.TemporaryDirectory() as folder:

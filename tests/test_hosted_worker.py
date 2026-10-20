@@ -76,6 +76,13 @@ class WorkerTests(unittest.TestCase):
             self.assertTrue(self.w.sync_one(item['id']))
         self.assertGreater(self.notion.request.call_count,before)
         self.assertEqual(self.gmail.send.call_count,1)
+    def test_reply_sync_failure_also_blocks_a_different_queued_send(self):
+        item=self.enqueue();self.w.tick(self.t);self.gmail.send.reset_mock()
+        self.db.records['outbox_second']={'kind':'outbox','id':'second','state':'queued','due_at':self.t,'lead_id':'other'}
+        def pending_reply():self.db.records['outbox_'+item['id']]['notion_sync_pending']=True
+        self.w.poll=Mock(side_effect=pending_reply)
+        result=self.w.tick(self.t+600)
+        self.assertEqual(result['state'],'notion-sync-pending');self.gmail.send.assert_not_called()
     def test_malformed_optional_receipt_metadata_does_not_hide_successful_send(self):
         item=self.enqueue();self.gmail.message.return_value={'id':'gmail1','payload':{'headers':[{'name':'Message-ID'}]}}
         result=self.w.tick(self.t)
