@@ -63,6 +63,19 @@ class SingleReviewTests(unittest.TestCase):
         self.assertEqual(before,self.lead)
         self.assertEqual(self.store.get(self.lead['id'])['status'],'Draft')
 
+    def test_agency_without_brand_industry_derives_sourced_california_zone(self):
+        lead=copy.deepcopy(self.lead)
+        text='Sample agency offers email creative and Klaviyo services in San Diego, CA. Contact hello@paper.example.'
+        lead.update(country='United States',type='Agency',industry='',location_city='San Diego, California',source_text=text,
+                    source_documents=[{'url':lead['url'],'text':text}],
+                    target_session={'id':'session','spec':{'country':'United States','city':'California','company_type':'Agency','industries':[],'kind':'Cold Outreach','limit':5}},
+                    target_evidence={'location':{'url':lead['url'],'quote':'San Diego, CA.'},'company_type':{'url':lead['url'],'quote':'agency offers email creative'}})
+        before=copy.deepcopy(lead);candidate=review.sourced_candidate(lead)
+        self.assertEqual(candidate['company_time_zone'],'America/Los_Angeles')
+        self.assertTrue(candidate['company_time_zone_verified'])
+        self.assertEqual(candidate['target_reasons'],[])
+        self.assertEqual(lead,before)
+
     def test_one_decision_updates_all_review_fields_without_queueing_or_sending(self):
         n=self.notion();current=delivery.remote_lead(self.store,n,copy.deepcopy(self.lead),persist=False)
         _,r=self.evaluate(current)

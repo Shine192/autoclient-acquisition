@@ -104,6 +104,15 @@ def city_matches(observed, requested):
     return normalize(requested) in [normalize(x) for x in re.split(r'[,;|—–]',observed)]
 
 
+def location_quote_matches(quote, spec):
+    if normalize(spec['city']) in normalize(quote):return True
+    # USPS Publication 28, Appendix B. Only explicit US state requests use
+    # these whole-token postal codes; other countries/cities keep exact checks.
+    # https://pe.usps.com/text/pub28/28apb.htm
+    code={'california':'CA','new york':'NY'}.get(normalize(spec['city']))
+    return bool(spec['country']=='United States' and code and re.search(r'\b'+code+r'\b',quote))
+
+
 def target_check(lead):
     spec=lead['target_session']['spec']; documents=lead['source_documents']; evidence=lead.get('target_evidence',{})
     reasons=[]
@@ -115,7 +124,7 @@ def target_check(lead):
         except (ValueError,TypeError):matches=[]
         if not isinstance(quote,str) or not 12<=len(quote)<=400 or not any(normalize(quote) in normalize(t) for t in matches):
             reasons.append('Missing exact '+key+' evidence')
-        elif key=='location' and normalize(spec['city']) not in normalize(quote):
+        elif key=='location' and not location_quote_matches(quote,spec):
             reasons.append('Location quote does not establish the requested city/region')
         elif key=='industry' and not any(term in normalize(quote) for term in INDUSTRIES.get(lead.get('industry'),{}).get('terms',[])):
             reasons.append('Industry quote does not establish a selected industry')

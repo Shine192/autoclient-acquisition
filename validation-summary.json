@@ -1,8 +1,8 @@
 {
-  "offline_tests": 332,
+  "offline_tests": 335,
   "passed": true,
   "live_github_deployed": true,
-  "live_hosted_test_completed": false,
+  "live_hosted_test_completed": true,
   "mac_installation_modified": false,
   "cloudflare_deferred": true,
   "repo": "Shine192/autoclient-acquisition",
@@ -12,5 +12,8 @@
   "transfer_verified": true,
   "hosted_ci_previous_version_passed": true,
   "handover_retry_preflight_passed": true,
-  "production_activated": false
+  "production_activated": false,
+  "live_handover_completed": true,
+  "live_hosted_reply_verified": true,
+  "live_production_dispatch_completed": false
 }
