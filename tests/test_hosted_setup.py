@@ -66,6 +66,23 @@ class SetupTests(unittest.TestCase):
   self.assertEqual(result['state'],'outside campaign dates')
   worker.return_value.poll.assert_called_once();worker.return_value.tick.assert_not_called()
   importer.assert_not_called();gmail.send.assert_not_called()
+ def test_reply_tracking_survives_timer_offset_and_short_delay_without_sending(self):
+  for expired in (False,True):
+   for minute,expected in ((3,True),(4,True),(8,False),(18,True)):
+    with self.subTest(expired=expired,minute=minute):
+     class Later(datetime):
+      @classmethod
+      def now(cls,tz=None):return cls(2026,10,25,0,minute,tzinfo=timezone.utc)
+     db=Memory();db.records=seed(self.root);q=Queue(db);s=db.get('settings')['data']
+     db.records['control'].update(paused=False,migration_complete=True,approved_hash=settings_hash(s))
+     if expired:campaign(q,s,20,['2026-10-20'])
+     gmail=Mock();gmail.identity.return_value=s['sending']['sender'];notion=Mock()
+     with patch.dict('os.environ',{'SHINE_DELIVERY_ENABLED':'true'}),patch('hosted_sender.cli.datetime',Later),patch('hosted_sender.cli.Worker') as worker,patch('hosted_sender.cli.refresh') as importer:
+      result=run(q,s,gmail,notion)
+     self.assertEqual(result['state'],'outside campaign dates' if expired else 'no active campaign')
+     self.assertEqual(worker.return_value.poll.call_count,int(expected))
+     self.assertEqual(gmail.identity.call_count,int(expected))
+     worker.return_value.tick.assert_not_called();importer.assert_not_called();gmail.send.assert_not_called()
  def test_hosted_self_test_only_to_owner_and_requires_actual_reply(self):
   db=Memory();db.records=seed(self.root);q=Queue(db);s=db.get('settings')['data'];g=Mock()
   g.identity.return_value=s['sending']['sender'];g.send.return_value={'id':'sent','threadId':'thread'}

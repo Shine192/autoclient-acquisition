@@ -106,7 +106,9 @@ def run(q,s,g,notion,max_seconds=225):
     if not active:
         # Continue bounded reply checks when enabled, even after a campaign is
         # closed. No periodic write is needed merely to remember a poll time.
-        if datetime.now(timezone.utc).minute%15==2:
+        # Use a five-minute bucket so timer offsets and short queue delays do
+        # not skip reply tracking after the campaign has ended.
+        if datetime.now(timezone.utc).minute%15<5:
             if g.identity()!=s['sending']['sender'].lower():raise ValueError('Wrong Gmail sender')
             w.poll()
         return {'state':'no active campaign'}
@@ -119,7 +121,7 @@ def run(q,s,g,notion,max_seconds=225):
     if all(abs((datetime.fromisoformat(d).date()-today).days)>1 for d in plan['dates']):
         # A campaign can end below its target. Keep reply/suppression tracking
         # alive afterwards without importing or sending new applications.
-        if datetime.now(timezone.utc).minute%15==2:
+        if datetime.now(timezone.utc).minute%15<5:
             if g.identity()!=s['sending']['sender'].lower():raise ValueError('Wrong Gmail sender')
             w.poll()
         return {'state':'outside campaign dates'}
