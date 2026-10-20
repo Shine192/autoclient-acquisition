@@ -66,7 +66,8 @@ repository write access. Never paste credentials into ChatGPT.
 
 1. Publish this source as a branch/PR in the existing repository, review the
    change, run the test workflow and merge it. Replace the existing main.py
-   and .github/workflows/outreach.yml with these versions. Keep email_template.html;
+   and .github/workflows/outreach.yml with these versions, and include
+   .github/workflows/delivery-timer.yml. Keep email_template.html;
    the new sender uses plain text and does not require it.
 2. Authenticate GitHub CLI as the owner or an authorized collaborator. It needs
    repository contents/workflow writes, Actions administration, and repository
@@ -117,6 +118,14 @@ need valid structured Research Notes in Notion. Truncated/missing research
 stays held; repair and sync from the dashboard rather than inventing it.
 
 ## Scheduling, limits and cost
+
+Actions shows **Outreach delivery timer** for automatic checks and **AutoClient
+Outreach** for manual controls. The timer calls the same guarded sender; both
+paths share the production concurrency lock and encrypted delivery history.
+Confirm an actual run with event **schedule** when checking unattended operation;
+a successful manual run only verifies the sender. Pause through the ledger's
+pause operation or SHINE_DELIVERY_ENABLED=false. Disabling only the manual
+workflow is not the global pause switch.
 
 The timer checks every five minutes away from the top of the hour. A run sends
 at most two messages, three minutes apart, and exits early when nothing is
