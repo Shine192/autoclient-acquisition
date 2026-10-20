@@ -94,6 +94,18 @@ class DeliveryTests(unittest.TestCase):
         self.lead['draft']['body'] += '\nI will design three free emails.'
         with self.assertRaises(ValueError): self.enqueue()
 
+    def test_feel_free_to_reply_does_not_promise_unpaid_work(self):
+        self.lead['draft']['body'] += '\nIf relevant, feel free to reply about a small paid test.'
+        self.assertIn('feel free to reply about a small paid test',d.check_draft(self.lead,self.profile,self.config)['body'])
+
+    def test_feel_free_invitation_does_not_hide_a_separate_free_offer(self):
+        self.lead['draft']['body'] += '\nFeel free to request three free email designs.'
+        with self.assertRaisesRegex(ValueError,'free-work'):d.check_draft(self.lead,self.profile,self.config)
+
+    def test_three_ideas_and_feel_free_do_not_enable_three_free_emails(self):
+        self.lead['draft']['body'] += '\nThree ideas to discuss; feel free to reply about a paid test.'
+        d.check_draft(self.lead,self.profile,self.config)
+
     def test_optional_offer_scope_enforced(self):
         self.config['offers']['audit']['enabled'] = True
         self.lead['selected_offer'] = 'audit'

@@ -213,9 +213,13 @@ def check_draft(lead, profile, config):
     if offer not in config['offers'] or not config['offers'][offer]['enabled']:
         raise ValueError('Selected offer is not enabled')
     text = draft['body'].lower()
-    if re.search(r'\b(?:free|complimentary|no.cost|unpaid)\b', text) and offer not in ('audit', 'sample', 'first_three'):
+    # An invitation to "feel free to reply" does not offer unpaid work.
+    # Other free-work language, including a later promise in the same sentence,
+    # must still be checked against the enabled offer.
+    offer_text = re.sub(r'\bfeel\s+free\b', '', text)
+    if re.search(r'\b(?:free|complimentary|no.cost|unpaid)\b', offer_text) and offer not in ('audit', 'sample', 'first_three'):
         raise ValueError('Unapproved free-work promise')
-    if re.search(r'(?:three|3).{0,25}(?:free|complimentary)|(?:free|complimentary).{0,25}(?:three|3)', text) and offer != 'first_three':
+    if re.search(r'(?:three|3).{0,25}(?:free|complimentary)|(?:free|complimentary).{0,25}(?:three|3)', offer_text) and offer != 'first_three':
         raise ValueError('Three-free-email offer is disabled')
     if offer in ('audit', 'sample', 'first_three') and config['offers'][offer]['scope'] not in draft['body']:
         raise ValueError('Optional offer must include its exact approved scope and limits')
