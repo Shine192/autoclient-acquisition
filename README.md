@@ -57,7 +57,7 @@ history to bypass the pilot limits.
 
 ## Deployment status
 
-Prepared and tested locally; NOT deployed or enabled. No production email has
+Source is published; production sending is NOT activated. No production email has
 been sent by this update. The transfer to Shine192/autoclient-acquisition was verified on 20 October
 2026 (repository ID 1166990339). The connected account is Shine192 and has
 repository write access. Never paste credentials into ChatGPT.
@@ -132,6 +132,11 @@ Public-repository schedules may be disabled after 60 days without activity;
 check the Actions page when starting a campaign after a long break.
 
 ## Recovery and pause
+
+Setup accepts an already-disabled workflow. A retry after an early failure
+does not try to disable that workflow again. Existing delivery history must
+still never be reset or reinitialized.
+
 
 - Choose pause to hold the ledger, or turn SHINE_DELIVERY_ENABLED off to stop
   future scheduled jobs. An already accepted Gmail send cannot be recalled;

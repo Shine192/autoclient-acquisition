@@ -68,6 +68,66 @@ class SetupTests(unittest.TestCase):
   with patch('hosted_sender.prepare.gh',return_value=json.dumps({'permissions':{'push':False}})):
    with self.assertRaisesRegex(ValueError,'no write access'):prepare(self.root)
   self.assertEqual((self.root/'config/sending.json').read_bytes(),before)
+ def test_handover_completes_when_previous_attempt_already_disabled_workflow(self):
+  from hosted_sender.prepare import prepare
+  import base64
+  for name in ('worker.lock','panel.lock','delivery.lock','automatic-research.lock'):(self.root/'state'/name).touch()
+  credentials=self.root/'state/credentials';credentials.mkdir()
+  (credentials/'gmail-token.json').write_text(json.dumps({'client_id':'fixture-client','client_secret':'fixture-secret','refresh_token':'fixture-refresh'}))
+  (self.root/'.env').write_text('NOTION_TOKEN=fixture-notion\n')
+  state={'workflow':'disabled_manually'};commands=[]
+  def fake(args,data=None):
+   commands.append(args)
+   if args[0]=='api':
+    if args[1].endswith('/contents/main.py'):return json.dumps({'content':base64.b64encode(b'from hosted_sender.cli import main').decode()})
+    if args[1].endswith('/actions/workflows/outreach.yml'):return json.dumps({'state':state['workflow']})
+    return json.dumps({'permissions':{'push':True}})
+   if args[:2]==['workflow','disable']:raise AssertionError('Must not disable an already disabled workflow')
+   if args[:2]==['workflow','enable']:state['workflow']='active'
+   if args[:2]==['auth','token']:return 'fixture-gh-token'
+   return ''
+  with patch('hosted_sender.prepare.gh',side_effect=fake),patch('hosted_sender.prepare.initialize') as initialize:
+   result=prepare(self.root)
+  self.assertTrue(result['prepared']);self.assertEqual(result['hosted_sender'],'paused')
+  self.assertEqual(json.loads((self.root/'config/sending.json').read_text())['mode'],'draft-only')
+  self.assertTrue((Path(result['backup'])/'handover-result.json').exists())
+  self.assertEqual(initialize.call_count,1)
+  self.assertTrue(initialize.call_args.args[3]['control']['mac_sender_disabled'])
+  self.assertEqual(len([c for c in commands if c[:2]==['secret','set']]),5)
+
+class HandoverRetryTests(unittest.TestCase):
+ def test_already_disabled_workflow_is_not_disabled_again(self):
+  from hosted_sender.prepare import workflow_switch
+  with patch('hosted_sender.prepare.gh',return_value=json.dumps({'state':'disabled_manually'})) as call:
+   workflow_switch(False)
+  self.assertEqual(call.call_count,1);self.assertEqual(call.call_args.args[0][0],'api')
+ def test_already_active_workflow_is_not_enabled_again(self):
+  from hosted_sender.prepare import workflow_switch
+  with patch('hosted_sender.prepare.gh',return_value=json.dumps({'state':'active'})) as call:
+   workflow_switch(True)
+  self.assertEqual(call.call_count,1)
+ def test_active_workflow_is_disabled_and_verified(self):
+  from hosted_sender.prepare import workflow_switch
+  with patch('hosted_sender.prepare.gh',side_effect=[json.dumps({'state':'active'}),'',json.dumps({'state':'disabled_manually'})]) as call:
+   workflow_switch(False)
+  self.assertEqual(call.call_args_list[1].args[0][:3],['workflow','disable','outreach.yml'])
+ def test_racing_disable_is_accepted_only_after_state_verification(self):
+  from hosted_sender.prepare import workflow_switch
+  with patch('hosted_sender.prepare.gh',side_effect=[json.dumps({'state':'active'}),ValueError('HTTP 403'),json.dumps({'state':'disabled_manually'}),json.dumps({'state':'disabled_manually'})]):
+   workflow_switch(False)
+  with patch('hosted_sender.prepare.gh',side_effect=[json.dumps({'state':'active'}),ValueError('HTTP 403'),json.dumps({'state':'active'})]):
+   with self.assertRaises(ValueError):workflow_switch(False)
+ def test_deleted_workflow_is_not_used(self):
+  from hosted_sender.prepare import workflow_switch
+  with patch('hosted_sender.prepare.gh',return_value=json.dumps({'state':'deleted'})) as call:
+   with self.assertRaisesRegex(ValueError,'unavailable'):workflow_switch(False)
+  self.assertEqual(call.call_count,1)
+ def test_cli_error_reports_operation_and_status_without_secret_output(self):
+  from hosted_sender.prepare import gh
+  failure=Mock(returncode=1,stderr='HTTP 403: private-token-and-body',stdout='secret')
+  with patch('hosted_sender.prepare.subprocess.run',return_value=failure):
+   with self.assertRaisesRegex(ValueError,r'secret set failed \(HTTP 403\)') as caught:gh(['secret','set','EXAMPLE'],'private-input')
+  self.assertNotIn('private',str(caught.exception));self.assertNotIn('secret-output',str(caught.exception))
 
 class NotionImportTests(unittest.TestCase):
  def setUp(self):

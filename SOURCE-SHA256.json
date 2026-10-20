@@ -6,8 +6,8 @@
   "GITHUB-ACCESS.md": "849071571022867658b7275ecf65950c7b6e30f7386304d3d289ba9987aaa6ae",
   "PULL_REQUEST.md": "49c9e31fd26e957bf5c212cdbb15a9bdbc3ad74417a2b02990e0248210e772a8",
   "Prepare-GitHub-Handover.command": "f6a4b0f1a93a21fa7e58c6c2d601ae6d1259ac22ea3cd31603743a06f03f1714",
-  "README.md": "b39701d311481c3825312119a7edfbbffa1f854e73a67b0333dc678fa1979a96",
-  "VALIDATION.md": "02e916d6993fc43c2b1469d56c52a580159e0f12fd6bf64e09cab40cb88017e5",
+  "README.md": "0980f4b4ed7f9a47b0d99f87a63e51f338b62331d135bae5e06476ebfb2d97f4",
+  "VALIDATION.md": "57df9f204defab79cf8e4084b037eb132a3a17a659adde68ff331e79809edd24",
   "acquisition_agent/__init__.py": "9abc0193264d70ca30306e3e2ac951bee5a3953db17659d60d25836442b6ef4b",
   "acquisition_agent/__main__.py": "db8db8372b772dec8f24f05c8810d5984b867aa461135b03b2fd839cb39ad6ec",
   "acquisition_agent/automatic.py": "4e154f948b8fb1064b290194875641d8e88369d6aad8ba4782df31e532668221",
@@ -76,7 +76,7 @@
   "hosted_sender/cli.py": "0160d90cbce0181edd735e56a6053b068fa814b52a90c181ba24dc6d39905bce",
   "hosted_sender/github_state.py": "4a6632144a997c8856c071f971414f29e56614122b5f2f144e612dc7b154badc",
   "hosted_sender/notion_import.py": "e7d1ec678956825c93f166df803f4a5f3beb6c64be1811cbde18a8e9dd6551e1",
-  "hosted_sender/prepare.py": "834af1faa8ab8a5dfc88bb3cc56b391e2e178ae544501678ee919dc0dcdd4440",
+  "hosted_sender/prepare.py": "dfdd886937df3ae4cb84d8d53790d164079c9a9e8011ba9973150eaac31410df",
   "hosted_sender/queue.py": "89c7d0a4aa7392935f208e5e0ef8562c4b51a8fafd97ab2f033b1bf8120dcc9f",
   "hosted_sender/worker.py": "b7609c404defc93f1d5955a6ff69228b28c13f75e2c80c5fc444ea2ebc94d667",
   "legacy/original-main.py.txt": "466e95dc222e481297fcd96ce90b0694cbb9ea4f772d1c904e5979415809c7a8",
@@ -90,7 +90,7 @@
   "tests/test_delivery.py": "38bb12a6f1d1c3d9af50d62657bdcd26c2d5754763b50ce9f18a314270279666",
   "tests/test_github_state.py": "04dbb2da7470ee070a0ea0abb3d91fe92ac083732cb079e6fc53e604aa22bd7d",
   "tests/test_hosted_queue.py": "1aebab0c7c8ad64f3d94d3237c1997ef495a4524d66634fa877f5e929dfeea9e",
-  "tests/test_hosted_setup.py": "457ee454abc63d8be3aaa62f8bc31e9789d1e9e8c7ed1f77a8a5080c6c13cbac",
+  "tests/test_hosted_setup.py": "6efae168877be4cebd38c42b414535460b54ca0001b29974c602dae0546d8332",
   "tests/test_hosted_worker.py": "4acd6406c76c4826916f50d1a2d2ce82082a51cca0e11bf2c5ea675a0608f509",
   "tests/test_notion_compat.py": "94d6e36090b151eae27e3739a7b77e3434cd0b9c87aa4cbe68748abc3fcb5f21",
   "tests/test_notion_review.py": "330b554de1b5c4479960ea9a8133f9c7a5fabbcd5eaeafdf32a4693e2872f107",
@@ -105,5 +105,5 @@
   "tests/test_update_launcher.py": "87dd8b6417b8c8dcbe04a00b334bcfdc9005bfca5b33f24079aa61700a2578c7",
   "tests/test_updater.py": "4efa49484467570ed86d09b0e107c9f0aee73e5a3ac3a323713d4cdd101da603",
   "tests/test_verification.py": "a0286c316220ab1ca35adaf4d73be3c77a8d4d2bfb949651b1cac26c7b52c857",
-  "validation-summary.json": "c1d04f04c134c622fe6c901c37729d226d5a32df4b6c5c1f55438ce26bd5d058"
+  "validation-summary.json": "7a4727282890c754dc496a7d93b317ee55fe0550e0c4ad714b6c0848bd0fc66d"
 }
