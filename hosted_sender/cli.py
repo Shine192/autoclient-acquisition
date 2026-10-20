@@ -94,14 +94,17 @@ def close(q):
     q.db.transaction(op)
     return {'closed':True,'history_preserved':True}
 
-def run(q,s,g,notion,max_seconds=225):
+def run(q,s,g,notion,max_seconds=225,report=lambda stage:None):
     if os.getenv('SHINE_DELIVERY_ENABLED')!='true':return {'state':'delivery switch off'}
     c=q.control()
     if c['paused'] or not c.get('migration_complete') or c.get('approved_hash')!=settings_hash(s):return {'state':'paused or setup incomplete'}
-    w=Worker(q,s,g,notion)
+    w=Worker(q,s,g,notion,report=report)
     if c.get('active_attempt'):return {'state':'uncertain outcome; reconcile before any sending'}
+    report('receipt_sync')
+    pending=0
     for item in q.db.list('outbox'):
-        if item['state']=='sent' and item.get('mode')!='test':w.sync_one(item['id'])
+        if item['state']=='sent' and item.get('mode')!='test' and w.sync_one(item['id']) is False:pending+=1
+    if pending:return {'state':'Notion receipt sync pending; saved messages will not be resent','sent_this_run':0,'notion_sync_pending':pending}
     active=c.get('active_campaign')
     if not active:
         # Continue bounded reply checks when enabled, even after a campaign is
@@ -125,12 +128,15 @@ def run(q,s,g,notion,max_seconds=225):
             if g.identity()!=s['sending']['sender'].lower():raise ValueError('Wrong Gmail sender')
             w.poll()
         return {'state':'outside campaign dates'}
+    report('notion_import')
     summary=refresh(q,notion,s,active)
     started=time.monotonic();sent=0
     for _ in range(2):
         result=w.tick()
         if result['state']!='sent':return {'state':result['state'],'sent_this_run':sent,**summary}
         sent+=1
+        if result.get('notion_sync_pending'):
+            return {'state':'Gmail accepted; Notion receipt sync pending','sent_this_run':sent,'notion_sync_pending':1,**summary}
         # At most two sends per short run; do not sleep if no other candidate can
         # send in this campaign's local window and selected dates.
         candidates=[]
@@ -157,6 +163,8 @@ def main():
         db=GitHubState(REPOSITORY,os.environ['SHINE_LEDGER_KEY'],API(REPOSITORY,os.environ['GH_TOKEN']))
         q=Queue(db);s=db.get('settings')['data'];Worker(q,s,None,None)
         if args.command=='status':
+            from .health import snapshot,emit
+            health=snapshot(q,s);emit(health)
             print(json.dumps({'paused':q.control()['paused'],'migration_complete':q.control().get('migration_complete',False),'active_campaign':q.control().get('active_campaign'),'outstanding_attempt':bool(q.control().get('active_attempt')),**policy_summary(s)}));return
         if args.command=='pause':q.pause();print('{"paused":true}');return
         if args.command=='activate':print(json.dumps(activate(q,s,args.policy_hash)));return
@@ -177,10 +185,14 @@ def main():
             if args.command=='self-test':result=self_test(q,s,g)
             elif args.command=='verify-test':result=verify_test(q,s,g,args.id)
             elif args.command=='reconcile':result=Worker(q,s,g,notion).reconcile(args.id)
-            else:result=run(q,s,g,notion)
+            else:
+                from .health import monitored_run
+                result=monitored_run(q,s,lambda progress:run(q,s,g,notion,report=progress))
             print(json.dumps(result))
-    except Exception:
+    except Exception as exc:
         # Public Actions logs must not contain drafts, contacts, tokens or HTTP bodies.
+        from .health import safe_error
+        print('SHINE_ERROR '+json.dumps(safe_error(exc)),file=sys.stderr)
         print('Operation stopped safely. Check secret names, ledger access, setup status and the Notion hold fields. Never reset history or blindly retry a send.',file=sys.stderr)
         raise SystemExit(1)
 

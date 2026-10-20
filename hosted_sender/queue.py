@@ -120,7 +120,8 @@ class Queue:
             if c.get('active_attempt') != key or item['state'] not in ('sending', 'uncertain'):
                 raise ValueError('Attempt ownership mismatch')
             if result and result.get('id') and result.get('threadId'):
-                item.update(state='sent', gmail_id=result['id'], thread_id=result['threadId'], error='')
+                item.update(state='sent', gmail_id=result['id'], thread_id=result['threadId'], error='',
+                            notion_sync_pending=True)
                 c['active_attempt'] = ''
             else:
                 item.update(state='uncertain', error='Outcome unknown; reconcile Gmail receipt. ' + error[:120])
