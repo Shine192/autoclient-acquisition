@@ -13,6 +13,7 @@ from acquisition_agent.gmail import Gmail
 from acquisition_agent.discovery import research
 from acquisition_agent.scheduling import permitted_time
 from .queue import digest
+from .github_state import StateError
 
 
 def settings_hash(settings):
@@ -20,8 +21,9 @@ def settings_hash(settings):
 
 
 class Worker:
-    def __init__(self, queue, settings, gmail, notion, researcher=research):
+    def __init__(self, queue, settings, gmail, notion, researcher=research, report=None):
         self.q, self.s, self.gmail, self.notion, self.research = queue, settings, gmail, notion, researcher
+        self.report = report or (lambda stage: None)
         delivery.validate_config(settings['sending'], settings['profile'])
         cfg=settings['sending']
         if cfg['send_hours']!=[8,11] or cfg['send_weekdays']!=[0,1,2,3,4] or cfg['minimum_interval_seconds']<180:
@@ -130,14 +132,17 @@ class Worker:
         cfg = self.s['sending']
         if cfg['mode'] != 'automatic' or self.q.control()['paused']:
             return {'state': 'paused-or-draft-only'}
+        self.report('gmail_identity')
         if self.gmail.identity() != cfg['sender'].lower(): raise ValueError('Wrong Gmail sender')
         self.sync_leads()
+        self.report('reply_check')
         self.poll()
         if self.q.control().get('active_attempt'): raise ValueError('Reconcile unresolved send first')
         for item in sorted(self.q.db.list('outbox'), key=lambda x: x.get('due_at', 0)):
             if item['state'] != 'queued' or item.get('mode') == 'test' or item['due_at'] > now: continue
             with tempfile.TemporaryDirectory() as folder:
                 store = self.local(folder)
+                self.report('preflight')
                 try: lead = self.preflight(item, store)
                 except ValueError as exc:
                     self.hold(item,str(exc))
@@ -146,6 +151,7 @@ class Worker:
             clock = datetime.fromtimestamp(now, timezone.utc)
             if not permitted_time(cfg, clock, lead): continue
             try:
+                self.report('source_and_history_check')
                 delivery.recheck(lead, self.s['preferences'], self.research)
                 if self.gmail.prior_contact(item['recipient']):raise ValueError('Gmail already contains contact with this recipient')
                 if self.gmail.prior_company_contact(item['company']):raise ValueError('Gmail may already contain contact with this company; review history')
@@ -165,39 +171,77 @@ class Worker:
             if not plan or datetime.fromtimestamp(dispatch,timezone.utc).astimezone(ZoneInfo(item['company_timezone'])).date().isoformat() not in plan['dates']:continue
             if plan['sent_attempts']>=plan['maximum_sends'] or control.get('days',{}).get(day,0)>=cfg['daily_limit']:continue
             if control.get('last_attempt',0) and dispatch-control['last_attempt']<cfg['minimum_interval_seconds']:continue
+            self.report('durable_claim')
             self.q.claim(item['id'], dispatch, settings_hash(self.s), cfg['daily_limit'],
                          cfg['minimum_interval_seconds'], cfg['timezone'])
             # From this point every crash is a durable unresolved send, never a retry.
             try:
                 if hasattr(self.q.db,'assert_current'):self.q.db.assert_current()
                 if self.q.control()['paused']: raise ValueError('Paused immediately before dispatch')
+                self.report('gmail_dispatch')
                 result = self.gmail.send(cfg['sender'], item['recipient'], item['subject'], item['body'], item['message_id'])
+                self.report('receipt_persistence')
                 self.q.outcome(item['id'], result)
             except Exception:
                 # Do not log exception bodies: they may contain tokens or message content.
                 self.q.outcome(item['id'], error='Dispatch or receipt persistence failed')
                 raise
+            self.report('receipt_reference')
             try:
                 message=self.gmail.message(result['id'])
+                if not isinstance(message,dict):raise ValueError('Receipt metadata unavailable')
                 h={v['name'].lower():v['value'] for v in message.get('payload',{}).get('headers',[])}
                 if message.get('id')==result['id'] and h.get('message-id'):
                     def save_reference(tx):
                         saved=tx.get('outbox_'+item['id']);saved['provider_message_id']=h['message-id'];tx.put('outbox_'+item['id'],saved)
                     self.q.db.transaction(save_reference)
-            except (ValueError,TypeError):pass
-            self.sync_one(item['id'])
-            return {'state': 'sent', 'id': item['id']}
+            except StateError:raise
+            except (ValueError,TypeError,KeyError):pass
+            self.report('notion_receipt_sync')
+            synced=self.sync_one(item['id'])
+            return {'state': 'sent', 'id': item['id'], 'notion_sync_pending':not synced}
         # Repair Notion independently; receipt was committed before Notion update.
         for item in self.q.db.list('outbox'):
             if item['state'] == 'sent' and item.get('mode') != 'test': self.sync_one(item['id'])
         return {'state': 'no-due-send'}
 
     def sync_one(self, key):
+        """Retry only Notion after a saved receipt; never repeat Gmail dispatch.
+
+        Provider failure is a visible pending sync, not a failed email. Durable
+        state errors still stop the worker; they must never be swallowed.
+        """
+        item=self.q.db.get('outbox_'+key)
+        if item['state']!='sent' or item.get('mode')=='test':return True
+        fingerprint=digest([item['gmail_id'],item['thread_id'],item['attempted_at'],item.get('reply_reason','')])
+        if (item.get('notion_receipt_synced')==fingerprint and not item.get('notion_sync_pending')
+                and time.time()-item.get('notion_synced_at',0)<15*60):return True
+        try:
+            visible=self._sync_one(key)
+        except StateError:raise
+        except (ValueError,KeyError,TypeError) as exc:
+            from .health import safe_error
+            def pending(tx):
+                saved=tx.get('outbox_'+key)
+                saved.update(notion_sync_pending=True,notion_sync_error=safe_error(exc))
+                tx.put('outbox_'+key,saved)
+            self.q.db.transaction(pending)
+            return False
+        def synced(tx):
+            saved=tx.get('outbox_'+key)
+            saved.update(notion_sync_pending=False,notion_sync_error=None,
+                         notion_receipt_synced=fingerprint,notion_synced_at=time.time(),
+                         notion_sync_state='synced' if visible else 'archived')
+            tx.put('outbox_'+key,saved)
+        self.q.db.transaction(synced)
+        return True
+
+    def _sync_one(self, key):
         item = self.q.db.get('outbox_' + key)
         if item['state'] != 'sent' or item.get('mode') == 'test': return
         lead = self.q.db.get('lead_' + item['lead_id'])['data']
         current=self.notion.request('pages/'+lead['notion_page_id'],'GET')
-        if current.get('archived') or current.get('in_trash'):return
+        if current.get('archived') or current.get('in_trash'):return False
         current_status=(current.get('properties',{}).get('STATUS',{}).get('status') or {}).get('name','')
         preserve=current_status in ('Replied','Interview','Won','Closed','Rejected','Do Not Contact')
         self.notion.request('pages/' + lead['notion_page_id'], 'PATCH', {'properties': {
@@ -206,6 +250,7 @@ class Worker:
             'Gmail Message ID': {'rich_text': rich(item['gmail_id'])},
             'Gmail Thread ID': {'rich_text': rich(item['thread_id'])},
             'sent time': {'date': {'start': datetime.fromtimestamp(item['attempted_at'], timezone.utc).isoformat()}}}})
+        return True
 
     def reconcile(self, key):
         item = self.q.db.get('outbox_' + key)

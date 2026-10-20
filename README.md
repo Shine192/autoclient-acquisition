@@ -57,10 +57,13 @@ history to bypass the pilot limits.
 
 ## Deployment status
 
-Source is published; production sending is NOT activated. No production email has
-been sent by this update. The transfer to Shine192/autoclient-acquisition was verified on 20 October
-2026 (repository ID 1166990339). The connected account is Shine192 and has
-repository write access. Never paste credentials into ChatGPT.
+The hosted sender is activated. A live approved send, saved Gmail receipt,
+Notion status update and recovery without redispatch were verified on 20 October
+2026. Automatic timer execution remains unverified until GitHub creates genuine
+schedule events; successful manual runs do not prove unattended operation.
+The repository transfer to Shine192/autoclient-acquisition was verified on
+20 October 2026 (repository ID 1166990339). The connected account is Shine192
+and has repository write access. Never paste credentials into ChatGPT.
 
 ## Setup once
 
@@ -141,6 +144,37 @@ Public-repository schedules may be disabled after 60 days without activity;
 check the Actions page when starting a campaign after a long break.
 
 ## Recovery and pause
+
+### Check delivery health
+
+Open the latest Actions run and its **Outreach delivery health** summary. It
+separates overall readiness, timer activity, worker outcome, queued/held counts,
+Gmail-accepted messages, Notion sync pending, unresolved attempts and the next
+conditional queue window in UTC. `SHINE_HEALTH` in the operation log contains the
+same aggregate report. Contacts, message bodies and credentials are excluded.
+
+Use **AutoClient Outreach → Run workflow → status** for a read-only health check.
+The **Outreach delivery timer → Run workflow** button tests the reusable timer
+path with status only; it cannot send mail. Only a genuine `schedule` event uses
+operation=run. Manual checks do not advance the recorded scheduled-success time.
+
+When Gmail has accepted a message and its receipt is durable, a later Notion
+failure is recorded as `notion_sync_pending`. That item remains Sent, cannot
+return to the send queue, and retries only its Notion update on a later run.
+New dispatch pauses while a prior receipt update is pending. Completed receipt
+syncs are cached for 15 minutes, then rechecked to repair accidental Notion edits.
+A Gmail timeout or uncertain durable write remains a hard stop needing receipt
+reconciliation; this update does not introduce send retries.
+
+One encrypted operational record retains the latest real worker completion,
+safe error category/HTTP status, stage, saved sends, last successful check and
+last scheduled success. The job summary also checks GitHub's actual timer runs;
+an enabled workflow with no schedule events is reported as unverified.
+
+A monitor outside GitHub is needed to detect a timer that never starts. For
+occasional campaigns, bound that monitor to the campaign period and disable it
+afterwards. An independent hourly check can warn about a missing run, but cannot
+guarantee minute-level detection or itself prove that email was delivered.
 
 Setup accepts an already-disabled workflow. A retry after an early failure
 does not try to disable that workflow again. Existing delivery history must

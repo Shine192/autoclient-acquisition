@@ -1,8 +1,11 @@
 name: Outreach delivery timer
+run-name: Delivery check · ${{ github.event_name }}
 
 on:
   schedule:
-    - cron: '3,8,13,18,23,28,33,38,43,48,53,58 * * * *'
+    - cron: '4-59/5 * * * *'
+  # Manual invocation tests this same reusable path without sending mail.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -12,7 +15,8 @@ jobs:
     if: vars.SHINE_DELIVERY_ENABLED == 'true'
     permissions:
       contents: write
+      actions: read
     uses: ./.github/workflows/outreach.yml
     with:
-      operation: run
+      operation: ${{ github.event_name == 'schedule' && 'run' || 'status' }}
     secrets: inherit

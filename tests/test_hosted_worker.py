@@ -8,6 +8,7 @@ from unittest.mock import Mock, patch
 from test_hosted_queue import Memory
 from hosted_sender.queue import Queue
 from hosted_sender.worker import Worker, settings_hash
+from hosted_sender.github_state import StateError
 from acquisition_agent.core import prepare_lead
 from acquisition_agent.providers import rich
 
@@ -53,9 +54,49 @@ class WorkerTests(unittest.TestCase):
     def test_notion_failure_after_send_does_not_resend(self):
         item=self.enqueue();original=self.notion.request.side_effect
         self.notion.request.side_effect=lambda p,m='POST',d=None:(_ for _ in ()).throw(ValueError('notion offline')) if m=='PATCH' else original(p,m,d)
-        with self.assertRaises(ValueError):self.w.tick(self.t)
+        result=self.w.tick(self.t)
+        self.assertEqual(result['state'],'sent');self.assertTrue(result['notion_sync_pending'])
         self.assertEqual(self.db.get('outbox_'+item['id'])['state'],'sent')
+        self.assertTrue(self.db.get('outbox_'+item['id'])['notion_sync_pending'])
+        self.assertFalse(self.q.control()['active_attempt'])
         self.notion.request.side_effect=original;self.w.tick(self.t+600)
+        self.assertEqual(self.gmail.send.call_count,1)
+        self.assertFalse(self.db.get('outbox_'+item['id'])['notion_sync_pending'])
+        self.assertTrue(self.db.get('outbox_'+item['id'])['notion_receipt_synced'])
+    def test_saved_receipt_sync_is_idempotent_and_does_not_repeat_patch(self):
+        item=self.enqueue();self.w.tick(self.t)
+        before=self.notion.request.call_count
+        self.assertTrue(self.w.sync_one(item['id']))
+        self.assertEqual(self.notion.request.call_count,before)
+        self.assertEqual(self.gmail.send.call_count,1)
+    def test_saved_receipt_is_rechecked_after_cache_expires_without_resending(self):
+        item=self.enqueue();self.w.tick(self.t)
+        saved=self.db.get('outbox_'+item['id']);before=self.notion.request.call_count
+        with patch('hosted_sender.worker.time.time',return_value=saved['notion_synced_at']+901):
+            self.assertTrue(self.w.sync_one(item['id']))
+        self.assertGreater(self.notion.request.call_count,before)
+        self.assertEqual(self.gmail.send.call_count,1)
+    def test_malformed_optional_receipt_metadata_does_not_hide_successful_send(self):
+        item=self.enqueue();self.gmail.message.return_value={'id':'gmail1','payload':{'headers':[{'name':'Message-ID'}]}}
+        result=self.w.tick(self.t)
+        self.assertEqual(result['state'],'sent');self.assertFalse(result['notion_sync_pending'])
+        self.assertEqual(self.db.get('outbox_'+item['id'])['state'],'sent')
+        self.assertEqual(self.gmail.send.call_count,1)
+    def test_sync_error_never_persists_private_provider_body(self):
+        item=self.enqueue();original=self.notion.request.side_effect
+        self.notion.request.side_effect=lambda p,m='POST',d=None:(_ for _ in ()).throw(ValueError('API request failed with HTTP 429 PRIVATE_TOKEN_BODY')) if m=='PATCH' else original(p,m,d)
+        self.w.tick(self.t)
+        saved=self.db.get('outbox_'+item['id'])
+        self.assertEqual(saved['notion_sync_error'],{'category':'ValueError','http_status':429})
+        self.assertNotIn('PRIVATE_TOKEN_BODY',json.dumps(saved))
+    def test_state_failure_after_notion_update_is_not_swallowed(self):
+        item=self.enqueue();original=self.db.transaction
+        def fail_marker(fn):
+            if fn.__name__=='synced':raise StateError('State unavailable')
+            return original(fn)
+        self.db.transaction=fail_marker
+        with self.assertRaises(StateError):self.w.tick(self.t)
+        self.assertEqual(self.db.get('outbox_'+item['id'])['state'],'sent')
         self.assertEqual(self.gmail.send.call_count,1)
     def test_changed_draft_stops_send(self):
         self.enqueue();self.lead['draft']['body']+=' Changed.'
