@@ -1,0 +1,33 @@
+{
+  "name": "Demo Designer",
+  "preferred_name": "Shine",
+  "sender_email": "sender@example.invalid",
+  "location": "Example location",
+  "time_zone": "Asia/Bangkok",
+  "experience": "Synthetic test profile only; not a production applicant claim.",
+  "services": [
+    "Figma email design",
+    "Klaviyo building with editable reusable blocks",
+    "Campaigns and welcome, abandoned cart, browse abandonment, post-purchase and winback flows",
+    "Desktop and mobile layouts",
+    "Links, buttons and dynamic product checks",
+    "Draft copy and campaign ideas for client review"
+  ],
+  "scope_exclusion": "Custom email HTML coding",
+  "preference": "Long-term freelance and paid trials with ongoing potential; scoped one-off projects also welcome",
+  "availability": "10–20 hours per week total; confirm remaining capacity before commitments",
+  "design_pricing": "USD 20–30 per email for Figma design only",
+  "klaviyo_pricing": "Quote separately after reviewing scope",
+  "portfolio_url": "https://portfolio.example.invalid/",
+  "upwork_url": "https://profile.example.invalid/",
+  "portfolio_reviewed": false,
+  "nationality": "Not supplied; no work authorization is inferred.",
+  "tools": [
+    "Figma",
+    "Klaviyo",
+    "Photoshop",
+    "Illustrator",
+    "AI tools"
+  ],
+  "email_signature": "Thank you,\nShine\nWhatsapp: (+0) 000-000-0000"
+}

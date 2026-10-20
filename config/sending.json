@@ -1,0 +1,55 @@
+{
+  "mode": "draft-only",
+  "sender": "sender@example.invalid",
+  "test_inbox": "sender@example.invalid",
+  "daily_limit": 50,
+  "minimum_interval_seconds": 180,
+  "minimum_fit_score": 75,
+  "timezone": "Asia/Bangkok",
+  "send_hours": [
+    8,
+    11
+  ],
+  "send_weekdays": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "allowed_kinds": [
+    "Posted Job",
+    "Cold Outreach"
+  ],
+  "require_row_approval": true,
+  "require_confirmed_job_eligibility": true,
+  "allow_unknown_cold_budget": true,
+  "max_recheck_age_hours": 24,
+  "follow_up_days": [
+    7
+  ],
+  "follow_ups_enabled": false,
+  "stop_on_any_inbound": true,
+  "cold_outreach_footer": "If this is not relevant, reply and I will not contact you again.",
+  "business_postal_address": "",
+  "offers": {
+    "paid_test": {
+      "enabled": true,
+      "scope": "One Figma email design, USD 20\u201330; Klaviyo implementation quoted separately."
+    },
+    "audit": {
+      "enabled": false,
+      "scope": "At most 3 written observations on one publicly available email or landing page; 20 minutes maximum; no implementation."
+    },
+    "sample": {
+      "enabled": false,
+      "scope": "One static email section in Figma; 30 minutes maximum; no full email or Klaviyo build."
+    },
+    "first_three": {
+      "enabled": false,
+      "scope": "Not approved. Define price, deliverables and revision limits before enabling."
+    }
+  },
+  "schedule_basis": "company",
+  "campaign_required": true
+}

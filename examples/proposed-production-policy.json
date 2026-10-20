@@ -1,0 +1,217 @@
+{
+  "approval_status": "SYNTHETIC EXAMPLE ONLY — NOT APPROVED",
+  "policy": {
+    "sending": {
+      "mode": "automatic",
+      "sender": "sender@example.invalid",
+      "test_inbox": "sender@example.invalid",
+      "daily_limit": 10,
+      "minimum_interval_seconds": 300,
+      "minimum_fit_score": 75,
+      "timezone": "Asia/Bangkok",
+      "send_hours": [
+        9,
+        11
+      ],
+      "send_weekdays": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "allowed_kinds": [
+        "Posted Job",
+        "Cold Outreach"
+      ],
+      "require_row_approval": true,
+      "require_confirmed_job_eligibility": true,
+      "allow_unknown_cold_budget": true,
+      "max_recheck_age_hours": 24,
+      "follow_up_days": [
+        7
+      ],
+      "follow_ups_enabled": false,
+      "stop_on_any_inbound": true,
+      "cold_outreach_footer": "If this is not relevant, reply and I will not contact you again.",
+      "business_postal_address": "",
+      "offers": {
+        "paid_test": {
+          "enabled": true,
+          "scope": "One Figma email design, USD 20–30; Klaviyo implementation quoted separately."
+        },
+        "audit": {
+          "enabled": false,
+          "scope": "At most 3 written observations on one publicly available email or landing page; 20 minutes maximum; no implementation."
+        },
+        "sample": {
+          "enabled": false,
+          "scope": "One static email section in Figma; 30 minutes maximum; no full email or Klaviyo build."
+        },
+        "first_three": {
+          "enabled": false,
+          "scope": "Not approved. Define price, deliverables and revision limits before enabling."
+        }
+      },
+      "schedule_basis": "company"
+    },
+    "profile": {
+      "name": "Demo Designer",
+      "preferred_name": "Shine",
+      "sender_email": "sender@example.invalid",
+      "location": "Example location",
+      "time_zone": "Asia/Bangkok",
+      "experience": "Synthetic test profile only; not a production applicant claim.",
+      "services": [
+        "Figma email design",
+        "Klaviyo building with editable reusable blocks",
+        "Campaigns and welcome, abandoned cart, browse abandonment, post-purchase and winback flows",
+        "Desktop and mobile layouts",
+        "Links, buttons and dynamic product checks",
+        "Draft copy and campaign ideas for client review"
+      ],
+      "scope_exclusion": "Custom email HTML coding",
+      "preference": "Long-term freelance and paid trials with ongoing potential; scoped one-off projects also welcome",
+      "availability": "10–20 hours per week total; confirm remaining capacity before commitments",
+      "design_pricing": "USD 20–30 per email for Figma design only",
+      "klaviyo_pricing": "Quote separately after reviewing scope",
+      "portfolio_url": "https://portfolio.example.invalid/",
+      "upwork_url": "https://profile.example.invalid/",
+      "portfolio_reviewed": false,
+      "nationality": "Not supplied; no work authorization is inferred.",
+      "tools": [
+        "Figma",
+        "Klaviyo",
+        "Photoshop",
+        "Illustrator",
+        "AI tools"
+      ],
+      "email_signature": "Thank you,\nShine\nWhatsapp: (+0) 000-000-0000"
+    },
+    "preferences": {
+      "design_rate_usd": [
+        20,
+        30
+      ],
+      "weekly_capacity_hours": 20,
+      "daily_application_target": 10,
+      "daily_application_cap": 20,
+      "countries": [
+        "United States",
+        "United Kingdom",
+        "Australia",
+        "New Zealand",
+        "Austria",
+        "Belgium",
+        "Bulgaria",
+        "Croatia",
+        "Cyprus",
+        "Czechia",
+        "Denmark",
+        "Estonia",
+        "Finland",
+        "France",
+        "Germany",
+        "Greece",
+        "Hungary",
+        "Iceland",
+        "Ireland",
+        "Italy",
+        "Latvia",
+        "Lithuania",
+        "Luxembourg",
+        "Malta",
+        "Netherlands",
+        "Norway",
+        "Poland",
+        "Portugal",
+        "Romania",
+        "Slovakia",
+        "Slovenia",
+        "Spain",
+        "Sweden",
+        "Switzerland",
+        "Albania",
+        "Andorra",
+        "Bosnia and Herzegovina",
+        "Kosovo",
+        "Liechtenstein",
+        "Moldova",
+        "Monaco",
+        "Montenegro",
+        "North Macedonia",
+        "San Marino",
+        "Serbia",
+        "Ukraine"
+      ],
+      "search_markets": [
+        "United States",
+        "United Kingdom",
+        "Europe",
+        "Australia",
+        "New Zealand"
+      ],
+      "rss_feeds": [
+        "https://weworkremotely.com/categories/remote-design-jobs.rss",
+        "https://weworkremotely.com/categories/remote-sales-and-marketing-jobs.rss",
+        "https://remotive.com/remote-jobs/feed/design",
+        "https://remotive.com/remote-jobs/feed/marketing"
+      ],
+      "max_search_calls_per_session": 2,
+      "search_results_per_query": 5,
+      "max_candidates_per_session": 20,
+      "max_ai_calls_per_session": 10,
+      "notion_leads_source_id": "59935700-60fe-4dea-82c8-eae6806a81b5",
+      "notion_sessions_source_id": "801f3175-e2fd-4859-a4be-bf92d21743dc",
+      "watchlist": [
+        {
+          "company": "The Orchard Agency",
+          "title": "Freelance email design support — The Orchard Agency",
+          "kind": "Cold Outreach",
+          "url": "https://www.theorchardagency.com.au/contact/",
+          "research_urls": []
+        },
+        {
+          "company": "LION Digital",
+          "title": "Freelance email design support — LION Digital",
+          "kind": "Cold Outreach",
+          "url": "https://liondigital.com.au/services/klaviyo-email-marketing/",
+          "research_urls": []
+        },
+        {
+          "company": "23 Digital",
+          "title": "Freelance email design support — 23 Digital",
+          "kind": "Cold Outreach",
+          "url": "https://www.23digital.com.au/klaviyo-email-marketing-agency/",
+          "research_urls": []
+        }
+      ]
+    },
+    "exclusions": {
+      "confirmed": true,
+      "companies": [
+        "Growth Horizon",
+        "Growth-Horizon"
+      ],
+      "domains": [
+        "growth-horizon.nl"
+      ],
+      "emails": [
+        "info@growth-horizon.nl"
+      ],
+      "instructions": "Initial exclusion supplied by Shine: info@growth-horizon.nl. Exclude the company, its domain and subdomains, and all email addresses at that domain. Add other exclusions as needed. No sending exists in milestone 1."
+    },
+    "stop_conditions": [
+      "pause",
+      "reply",
+      "rejection",
+      "bounce",
+      "opt-out",
+      "closed job",
+      "suppression",
+      "uncertain send",
+      "inbox scan failure"
+    ],
+    "scope": "One Mac and one shared state directory; no cross-device delivery guarantee."
+  }
+}
