@@ -1,0 +1,7 @@
+{
+  "confirmed": true,
+  "companies": ["Growth Horizon", "Growth-Horizon"],
+  "domains": ["growth-horizon.nl"],
+  "emails": ["info@growth-horizon.nl"],
+  "instructions": "Initial exclusion supplied by Shine: info@growth-horizon.nl. Exclude the company, its domain and subdomains, and all email addresses at that domain. Add other exclusions as needed. No sending exists in milestone 1."
+}

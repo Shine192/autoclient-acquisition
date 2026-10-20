@@ -1,0 +1,29 @@
+{
+  "rss_feeds": [
+    "https://remotive.com/remote-jobs/feed/design",
+    "https://remotive.com/remote-jobs/feed/marketing"
+  ],
+  "watchlist": [
+    {
+      "company": "The Orchard Agency",
+      "title": "Freelance email design support \u2014 The Orchard Agency",
+      "kind": "Cold Outreach",
+      "url": "https://www.theorchardagency.com.au/contact/",
+      "research_urls": []
+    },
+    {
+      "company": "LION Digital",
+      "title": "Freelance email design support \u2014 LION Digital",
+      "kind": "Cold Outreach",
+      "url": "https://liondigital.com.au/services/klaviyo-email-marketing/",
+      "research_urls": []
+    },
+    {
+      "company": "23 Digital",
+      "title": "Freelance email design support \u2014 23 Digital",
+      "kind": "Cold Outreach",
+      "url": "https://www.23digital.com.au/klaviyo-email-marketing-agency/",
+      "research_urls": []
+    }
+  ]
+}

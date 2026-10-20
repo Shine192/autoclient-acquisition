@@ -1,0 +1,113 @@
+{
+  "design_rate_usd": [
+    20,
+    30
+  ],
+  "weekly_capacity_hours": 20,
+  "daily_application_target": 10,
+  "daily_application_cap": 20,
+  "countries": [
+    "United States",
+    "United Kingdom",
+    "Australia",
+    "New Zealand",
+    "Austria",
+    "Belgium",
+    "Bulgaria",
+    "Croatia",
+    "Cyprus",
+    "Czechia",
+    "Denmark",
+    "Estonia",
+    "Finland",
+    "France",
+    "Germany",
+    "Greece",
+    "Hungary",
+    "Iceland",
+    "Ireland",
+    "Italy",
+    "Latvia",
+    "Lithuania",
+    "Luxembourg",
+    "Malta",
+    "Netherlands",
+    "Norway",
+    "Poland",
+    "Portugal",
+    "Romania",
+    "Slovakia",
+    "Slovenia",
+    "Spain",
+    "Sweden",
+    "Switzerland",
+    "Albania",
+    "Andorra",
+    "Bosnia and Herzegovina",
+    "Kosovo",
+    "Liechtenstein",
+    "Moldova",
+    "Monaco",
+    "Montenegro",
+    "North Macedonia",
+    "San Marino",
+    "Serbia",
+    "Ukraine",
+    "United Arab Emirates"
+  ],
+  "search_markets": [
+    "United States",
+    "United Kingdom",
+    "Europe",
+    "Australia",
+    "New Zealand",
+    "United Arab Emirates"
+  ],
+  "rss_feeds": [
+    "https://weworkremotely.com/categories/remote-design-jobs.rss",
+    "https://weworkremotely.com/categories/remote-sales-and-marketing-jobs.rss"
+  ],
+  "max_search_calls_per_session": 2,
+  "search_results_per_query": 5,
+  "max_candidates_per_session": 20,
+  "max_ai_calls_per_session": 10,
+  "notion_leads_source_id": "59935700-60fe-4dea-82c8-eae6806a81b5",
+  "notion_sessions_source_id": "801f3175-e2fd-4859-a4be-bf92d21743dc",
+  "max_post_age_days": 60,
+  "title_keywords": [
+    "email designer",
+    "email design",
+    "klaviyo",
+    "email marketing designer"
+  ],
+  "required_skills_any": [
+    "figma",
+    "klaviyo",
+    "email design",
+    "email designer"
+  ],
+  "excluded_skill_requirements": [
+    "custom html coding is required",
+    "html email coding required"
+  ],
+  "work_modes": [
+    "remote"
+  ],
+  "contract_keywords": [
+    "freelance",
+    "contract",
+    "project",
+    "paid trial",
+    "part-time",
+    "retainer"
+  ],
+  "excluded_industries": [],
+  "company_types": [
+    "Agency",
+    "Brand",
+    "Start-up"
+  ],
+  "minimum_hourly_usd": null,
+  "minimum_project_usd": null,
+  "timezone_overlap_notes": "Thailand UTC+7; verify any required overlap before approval."
+}

@@ -1,0 +1,20 @@
+[
+  {
+    "url": "https://sample-studio.test/jobs/email-designer",
+    "title": "Sample Studio: Freelance Email Designer [DEMO]",
+    "company": "Sample Studio (fictional)",
+    "country": "United Kingdom",
+    "kind": "Posted Job",
+    "is_demo": true,
+    "posted_at": "2026-10-18",
+    "source_text": "DEMO DATA: Sample Studio is a fictional agency in the United Kingdom. We need an ongoing freelance email designer for e-commerce clients. Figma and Klaviyo experience preferred. We hire international freelancers. Budget USD 25 per email for Figma design only. Workload 10 hours per week. Apply through our sample form. This is not a real opportunity."
+  },
+  {
+    "url": "https://sample-brand.test/",
+    "title": "Unrelated brand [DEMO]",
+    "company": "Unrelated Sample Brand (fictional)",
+    "kind": "Cold Outreach",
+    "is_demo": true,
+    "source_text": "DEMO DATA: An unrelated fictional equipment supplier selling industrial pumps."
+  }
+]

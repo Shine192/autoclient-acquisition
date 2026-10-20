@@ -1,0 +1,13 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+state/
+private/
+update-backups/
+local-only/
+*.sqlite3*
+*gmail-token*.json
+*oauth-client*.json
+ledger-key*
+*.enc
