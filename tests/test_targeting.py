@@ -77,6 +77,21 @@ class TargetSessionTests(unittest.TestCase):
         self.assertEqual(lead['score'],0);self.assertTrue(lead['target_reasons'])
         self.assertIn('Observed company location',str(lead['target_reasons']))
 
+    def test_sourced_eatery_wording_matches_restaurant_industry_without_relaxing_evidence(self):
+        from acquisition_agent.targeting import target_check
+        lead=copy.deepcopy(self.raw)
+        lead.update(industry='restaurants_cafes',target_session={'spec':dict(self.spec,industries=['restaurants_cafes'])})
+        text='An independent eatery brand in New York, United States. We operate three eateries.'
+        lead['source_documents']=[{'url':lead['url'],'text':text}]
+        lead['target_evidence']={k:{'url':lead['url'],'quote':q} for k,q in
+            [('location','New York, United States'),('company_type','independent eatery brand'),('industry','operate three eateries')]}
+        self.assertEqual(target_check(lead),[])
+        lead['target_evidence']['industry']['quote']='Invented eatery text'
+        self.assertIn('Missing exact industry evidence',target_check(lead))
+        lead['target_evidence']['industry']['quote']='operate three eateries'
+        lead['target_session']['spec']['industries']=['chocolate_snacks_nuts']
+        self.assertIn('Observed industry does not match session',target_check(lead))
+
     def test_exact_us_state_postal_quote_matches_full_state_request(self):
         from acquisition_agent.targeting import target_check
         lead=copy.deepcopy(self.raw)
