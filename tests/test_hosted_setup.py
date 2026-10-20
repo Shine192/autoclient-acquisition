@@ -53,6 +53,19 @@ class SetupTests(unittest.TestCase):
   state=seed(self.root);db=Memory();db.records=state;q=Queue(db);s=state['settings']['data'];gmail=Mock();notion=Mock()
   with patch.dict('os.environ',{'SHINE_DELIVERY_ENABLED':'false'}):self.assertEqual(run(q,s,gmail,notion)['state'],'delivery switch off')
   gmail.identity.assert_not_called();notion.query.assert_not_called()
+ def test_reply_tracking_continues_after_campaign_dates_without_new_import_or_send(self):
+  class Later(datetime):
+   @classmethod
+   def now(cls,tz=None):return cls(2026,10,25,0,2,tzinfo=timezone.utc)
+  db=Memory();db.records=seed(self.root);q=Queue(db);s=db.get('settings')['data']
+  c=db.records['control'];c.update(paused=False,migration_complete=True,approved_hash=settings_hash(s))
+  campaign(q,s,20,['2026-10-20'])
+  gmail=Mock();gmail.identity.return_value=s['sending']['sender'];notion=Mock()
+  with patch.dict('os.environ',{'SHINE_DELIVERY_ENABLED':'true'}),patch('hosted_sender.cli.datetime',Later),patch('hosted_sender.cli.Worker') as worker,patch('hosted_sender.cli.refresh') as importer:
+   result=run(q,s,gmail,notion)
+  self.assertEqual(result['state'],'outside campaign dates')
+  worker.return_value.poll.assert_called_once();worker.return_value.tick.assert_not_called()
+  importer.assert_not_called();gmail.send.assert_not_called()
  def test_hosted_self_test_only_to_owner_and_requires_actual_reply(self):
   db=Memory();db.records=seed(self.root);q=Queue(db);s=db.get('settings')['data'];g=Mock()
   g.identity.return_value=s['sending']['sender'];g.send.return_value={'id':'sent','threadId':'thread'}

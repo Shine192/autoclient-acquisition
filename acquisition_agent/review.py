@@ -14,6 +14,7 @@ ATTESTATION = ('By approving, I confirm I reviewed the company fit, recipient, m
 CITY_ZONES = {('United Arab Emirates','dubai'):'Asia/Dubai',
               ('United Kingdom','london'):'Europe/London',
               ('United States','new york'):'America/New_York',
+              ('United States','california'):'America/Los_Angeles',
               ('Australia','sydney'):'Australia/Sydney',('Australia','melbourne'):'Australia/Melbourne',
               ('Australia','brisbane'):'Australia/Brisbane',('Australia','perth'):'Australia/Perth',
               ('Australia','adelaide'):'Australia/Adelaide',('New Zealand','auckland'):'Pacific/Auckland'}
@@ -45,19 +46,20 @@ def sourced_candidate(lead):
         value['email_candidates']=[x for x in value.get('email_candidates',[]) if x!=address]
         value['contact_source_url']=''
     # A paraphrased industry quote can be replaced with a literal, cited passage.
-    if value.get('target_session') and value.get('industry') in targeting.INDUSTRIES:
+    if value.get('target_session'):
         evidence=value.setdefault('target_evidence',{})
-        item=evidence.get('industry',{})
-        valid=any(d['url'].rstrip('/')==item.get('url','').rstrip('/') and
-                  12<=len(item.get('quote',''))<=400 and normalize(item['quote']) in normalize(d['text']) for d in documents)
-        if not valid:
-            terms=targeting.INDUSTRIES[value['industry']]['terms']
-            for doc in documents:
-                match=re.search('|'.join(re.escape(t) for t in terms),doc['text'],re.I)
-                if match:
-                    start=max(0,match.start()-80);quote=doc['text'][start:start+300]
-                    if len(quote)>=12:
-                        evidence['industry']={'url':doc['url'],'quote':quote};break
+        if value.get('industry') in targeting.INDUSTRIES:
+            item=evidence.get('industry',{})
+            valid=any(d['url'].rstrip('/')==item.get('url','').rstrip('/') and
+                      12<=len(item.get('quote',''))<=400 and normalize(item['quote']) in normalize(d['text']) for d in documents)
+            if not valid:
+                terms=targeting.INDUSTRIES[value['industry']]['terms']
+                for doc in documents:
+                    match=re.search('|'.join(re.escape(t) for t in terms),doc['text'],re.I)
+                    if match:
+                        start=max(0,match.start()-80);quote=doc['text'][start:start+300]
+                        if len(quote)>=12:
+                            evidence['industry']={'url':doc['url'],'quote':quote};break
         # Infer a zone only for an explicitly supported, sourced office city.
         spec=value['target_session']['spec']
         zone=CITY_ZONES.get((value.get('country'),normalize(spec['city'])))
@@ -65,7 +67,7 @@ def sourced_candidate(lead):
         location_valid=any(d['url'].rstrip('/')==location.get('url','').rstrip('/') and
                            12<=len(location.get('quote',''))<=400 and normalize(location['quote']) in normalize(d['text'])
                            for d in documents)
-        if zone and location_valid and targeting.city_matches(value.get('location_city',''),spec['city']):
+        if zone and location_valid and targeting.location_quote_matches(location.get('quote',''),spec) and targeting.city_matches(value.get('location_city',''),spec['city']):
             # The single review action explicitly confirms these displayed facts.
             value.update(company_time_zone=zone,company_time_zone_verified=True,
                          company_time_zone_source=location['url'])

@@ -77,6 +77,25 @@ class TargetSessionTests(unittest.TestCase):
         self.assertEqual(lead['score'],0);self.assertTrue(lead['target_reasons'])
         self.assertIn('Observed company location',str(lead['target_reasons']))
 
+    def test_exact_us_state_postal_quote_matches_full_state_request(self):
+        from acquisition_agent.targeting import target_check
+        lead=copy.deepcopy(self.raw)
+        lead['target_session']={'spec':dict(self.spec,city='California')}
+        lead['location_city']='San Diego, California'
+        text=self.text+' Office: San Diego, CA.'
+        lead['source_documents']=[{'url':lead['url'],'text':text}]
+        lead['target_evidence']['location']['quote']='San Diego, CA.'
+        self.assertEqual(target_check(lead),[])
+        lead['source_documents'][0]['text']=self.text
+        self.assertIn('Missing exact location evidence',target_check(lead))
+
+    def test_postal_alias_does_not_expand_other_countries_or_substrings(self):
+        from acquisition_agent.targeting import location_quote_matches
+        self.assertTrue(location_quote_matches('Office: Albany, NY.',{'country':'United States','city':'New York'}))
+        self.assertFalse(location_quote_matches('Office: San Diego, CA.',{'country':'Canada','city':'California'}))
+        self.assertFalse(location_quote_matches('CAMERA services office',{'country':'United States','city':'California'}))
+        self.assertFalse(location_quote_matches('Office: San Diego, ca.',{'country':'United States','city':'California'}))
+
     def test_wrong_session_kind_and_exclusion_do_not_import(self):
         raw=dict(self.raw,kind='Posted Job');self.assertTrue(self.run_import(raw)['errors'])
         raw=dict(self.raw,url='https://growth-horizon.nl/',website='https://growth-horizon.nl/')

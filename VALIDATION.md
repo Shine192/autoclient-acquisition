@@ -30,3 +30,17 @@ hosted OAuth refresh and Notion sync, self-inbox/reply verification and
 production dispatch. The actual Mac mode change was made by the user's
 handover command; the workspace has not edited that installation.
 Cloudflare remains deferred. Do not describe this sender as activated.
+
+Location validation fix: US California/CA and New York/NY office quotes
+accept exact uppercase postal tokens only under a United States state request.
+Exact source quotation and observed location/type checks remain required.
+Sourced timezone inference also runs for agencies with no brand industry.
+California uses America/Los_Angeles. Tests cover missing quotes, substrings,
+other countries and unchanged input records. The full offline suite passes
+335 tests. Real hosted self-inbox sending and reply verification passed.
+Production dispatch remains disabled pending final campaign approval.
+
+Post-campaign tracking: when dates end before the campaign total is reached,
+the enabled sender still polls replies on its bounded interval, verifies the
+Gmail identity and does not import or send applications outside the dates.
+The full offline suite now passes 336 tests.
