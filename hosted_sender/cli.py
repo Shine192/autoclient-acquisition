@@ -116,7 +116,13 @@ def run(q,s,g,notion,max_seconds=225):
     # UTC date can differ from company-local date by one day. Claim still checks
     # the exact company date and weekday immediately before every dispatch.
     today=datetime.now(timezone.utc).date()
-    if all(abs((datetime.fromisoformat(d).date()-today).days)>1 for d in plan['dates']):return {'state':'outside campaign dates'}
+    if all(abs((datetime.fromisoformat(d).date()-today).days)>1 for d in plan['dates']):
+        # A campaign can end below its target. Keep reply/suppression tracking
+        # alive afterwards without importing or sending new applications.
+        if datetime.now(timezone.utc).minute%15==2:
+            if g.identity()!=s['sending']['sender'].lower():raise ValueError('Wrong Gmail sender')
+            w.poll()
+        return {'state':'outside campaign dates'}
     summary=refresh(q,notion,s,active)
     started=time.monotonic();sent=0
     for _ in range(2):

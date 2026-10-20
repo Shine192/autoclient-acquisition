@@ -39,3 +39,8 @@ California uses America/Los_Angeles. Tests cover missing quotes, substrings,
 other countries and unchanged input records. The full offline suite passes
 335 tests. Real hosted self-inbox sending and reply verification passed.
 Production dispatch remains disabled pending final campaign approval.
+
+Post-campaign tracking: when dates end before the campaign total is reached,
+the enabled sender still polls replies on its bounded interval, verifies the
+Gmail identity and does not import or send applications outside the dates.
+The full offline suite now passes 336 tests.
