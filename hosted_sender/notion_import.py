@@ -24,6 +24,10 @@ def read_lead(page,preferences):
           'email':p.get('EMAIL',{}).get('email') or '',
           'contact_source_url':p.get('Contact Source URL',{}).get('url') or '',
           'remote_eligibility':(p.get('Remote Eligibility',{}).get('select') or {}).get('name','Unknown'),
+          'rate_per_email':p.get('Rate Per Email',{}).get('number'),
+          'currency':value(p,'Budget Currency'),
+          'weekly_hours':p.get('Hours Per Week',{}).get('number'),
+          'posted_at':(p.get('Posting Date',{}).get('date') or {}).get('start'),
           'discovered_at':notes.get('collected',''),'source_text':doc['text'],'source_documents':notes['source_documents'],
           'research_source_url':notes.get('source',doc['url']),'research_level':notes.get('research_level','Supplied research'),
           'research_warning':notes.get('research_warning',''),'checked_at':notes.get('checked_at',''),
@@ -88,7 +92,7 @@ def refresh(queue,notion,settings,campaign_id=None):
             prior=dict(existing['data']);prior['notion_page_id']=page['id'];lead=prior
         def save(tx):tx.put('lead_'+key,{'kind':'lead','data':lead})
         queue.db.transaction(save);output['imported']+=1
-    if campaign_id:
+    if campaign_id or queue.control().get('delivery_model')=='notion-approval':
         from .worker import Worker
         worker=Worker(queue,settings,None,notion)
         for key,page in keys.items():

@@ -24,7 +24,9 @@ def prepare(store, notion, lead, config, profile, prefs, exclusions):
                '\nFinal step: review the recipient, message and contact purpose; set STATUS to Approve. ' +
                'Use Needs Review to hold or Do Not Contact to stop. ' +
                'Approval does not confirm a vacancy, client interest or work authorization.')
-    if result['setup_blockers']:
+    if config.get('delivery_backend')=='github':
+        summary += '\nDelivery: GitHub monitors STATUS=Approve. The Mac can sleep after sync. Company-local windows and daily limits apply.'
+    elif result['setup_blockers']:
         summary += '\nSender setup: ' + '; '.join(result['setup_blockers'])
     props = {'Research Check': {'select': {'name': check}},
              'Review Summary': {'rich_text': rich(summary)},

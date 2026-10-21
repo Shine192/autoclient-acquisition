@@ -26,6 +26,32 @@ def policy_summary(settings):
             'minimum_fit_score':cfg['minimum_fit_score'],'offers':[k for k,v in cfg['offers'].items() if v['enabled']],
             'followups':'disabled','approval':'Notion STATUS = Approve','history':'Encrypted persistent Git branch'}
 
+def enable_approvals(q,s,expected):
+    """Explicit once-only change from a dated pilot to ongoing row approval.
+
+    Preserve the tested content policy, all receipts, counters and reservations.
+    No research or message is approved by this operation.
+    """
+    if expected!=settings_hash(s):raise ValueError('Review the current policy hash')
+    def op(tx):
+        c=tx.get('control')
+        if (not c or not c.get('migration_complete') or not c.get('mac_sender_disabled')
+                or not c.get('test_verified') or c.get('test_hash')!=expected
+                or c.get('approved_hash')!=expected):
+            raise ValueError('Existing handover and verified sender policy required')
+        if c.get('active_attempt'):raise ValueError('Resolve uncertain delivery first')
+        for item in q.db.list('outbox'):
+            if item.get('campaign') and item['state'] in ('queued','blocked') and not item.get('attempted_at'):
+                item.update(state='cancelled',approval_reset_done=True)
+                tx.put('outbox_'+item['id'],item)
+        c.update(delivery_model='notion-approval',approval_policy_hash=expected,
+                 active_campaign=None,approval_enabled_at=datetime.now(timezone.utc).isoformat())
+        tx.put('control',c)
+    q.db.transaction(op)
+    return {'delivery_model':'notion-approval','campaign_required':False,
+            'approval':'Notion STATUS = Approve','daily_limit':s['sending']['daily_limit'],
+            'company_local_hours':s['sending']['send_hours'],'history_preserved':True}
+
 def self_test(q,s,g):
     sender=s['sending']['sender'].lower()
     if g.identity()!=sender:raise ValueError('Wrong Gmail identity')
@@ -72,6 +98,7 @@ def activate(q,s,expected):
 def campaign(q,s,target,dates):
     if not dates or len(dates)>14 or len(set(dates))!=len(dates):raise ValueError('Choose 1–14 distinct company-local weekdays')
     c=q.control()
+    if c.get('delivery_model')=='notion-approval':raise ValueError('This sender uses individual Notion approvals; no campaign required')
     if c.get('active_campaign'):raise ValueError('Close the existing hosted campaign first')
     key=uuid.uuid4().hex
     q.campaign(key,{'id':key,'dates':sorted(dates),'start_date':min(dates),'end_date':max(dates),'maximum_sends':target,'settings_hash':settings_hash(s),'target':None})
@@ -106,7 +133,10 @@ def run(q,s,g,notion,max_seconds=225,report=lambda stage:None):
         if item['state']=='sent' and item.get('mode')!='test' and w.sync_one(item['id']) is False:pending+=1
     if pending:return {'state':'Notion receipt sync pending; saved messages will not be resent','sent_this_run':0,'notion_sync_pending':pending}
     active=c.get('active_campaign')
-    if not active:
+    approval_mode=c.get('delivery_model')=='notion-approval'
+    if approval_mode and c.get('approval_policy_hash')!=settings_hash(s):
+        return {'state':'approval policy changed; review settings'}
+    if not active and not approval_mode:
         # Continue bounded reply checks when enabled, even after a campaign is
         # closed. No periodic write is needed merely to remember a poll time.
         # Use a five-minute bucket so timer offsets and short queue delays do
@@ -115,13 +145,13 @@ def run(q,s,g,notion,max_seconds=225,report=lambda stage:None):
             if g.identity()!=s['sending']['sender'].lower():raise ValueError('Wrong Gmail sender')
             w.poll()
         return {'state':'no active campaign'}
-    plan=q.db.get('campaign_'+active)
-    if not plan or plan['sent_attempts']>=plan['maximum_sends']:
+    plan=q.db.get('campaign_'+active) if active else None
+    if not approval_mode and (not plan or plan['sent_attempts']>=plan['maximum_sends']):
         w.poll();return {'state':'campaign target reached'}
     # UTC date can differ from company-local date by one day. Claim still checks
     # the exact company date and weekday immediately before every dispatch.
     today=datetime.now(timezone.utc).date()
-    if all(abs((datetime.fromisoformat(d).date()-today).days)>1 for d in plan['dates']):
+    if not approval_mode and all(abs((datetime.fromisoformat(d).date()-today).days)>1 for d in plan['dates']):
         # A campaign can end below its target. Keep reply/suppression tracking
         # alive afterwards without importing or sending new applications.
         if datetime.now(timezone.utc).minute%15<5:
@@ -153,7 +183,7 @@ def run(q,s,g,notion,max_seconds=225,report=lambda stage:None):
 
 def main():
     parser=argparse.ArgumentParser(description='GitHub delivery. No implicit initialization or reset.')
-    parser.add_argument('command',nargs='?',default='status',choices=['status','dry-run','self-test','verify-test','activate','pause','resume','campaign','close','run','reconcile'])
+    parser.add_argument('command',nargs='?',default='status',choices=['status','dry-run','self-test','verify-test','activate','enable-approvals','pause','resume','campaign','close','run','reconcile'])
     parser.add_argument('--id',default=os.getenv('SHINE_ITEM_ID',''))
     parser.add_argument('--policy-hash',default=os.getenv('SHINE_POLICY_HASH',''))
     parser.add_argument('--target',type=int,default=int(os.getenv('SHINE_CAMPAIGN_TARGET','20') or '20'))
@@ -168,6 +198,7 @@ def main():
             print(json.dumps({'paused':q.control()['paused'],'migration_complete':q.control().get('migration_complete',False),'active_campaign':q.control().get('active_campaign'),'outstanding_attempt':bool(q.control().get('active_attempt')),**policy_summary(s)}));return
         if args.command=='pause':q.pause();print('{"paused":true}');return
         if args.command=='activate':print(json.dumps(activate(q,s,args.policy_hash)));return
+        if args.command=='enable-approvals':print(json.dumps(enable_approvals(q,s,args.policy_hash)));return
         if args.command=='resume':
             c=q.control()
             if not c.get('migration_complete') or c.get('approved_hash')!=settings_hash(s) or c.get('active_attempt'):raise ValueError('Setup or uncertain delivery hold')

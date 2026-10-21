@@ -30,17 +30,25 @@ def next_window(queue, settings, now):
     """Earliest remaining queue window, not a promise of eligibility or delivery."""
     cfg = settings['sending']; control = queue.control()
     plan = queue.db.get('campaign_' + control['active_campaign']) if control.get('active_campaign') else None
-    if not plan or control.get('paused') or control.get('active_attempt') or plan['sent_attempts'] >= plan['maximum_sends']:
+    approval_mode=control.get('delivery_model')=='notion-approval'
+    if (control.get('paused') or control.get('active_attempt') or
+            (not approval_mode and (not plan or plan['sent_attempts'] >= plan['maximum_sends']))):
         return None
     from .worker import settings_hash
     if (os.getenv('SHINE_DELIVERY_ENABLED') != 'true' or cfg['mode'] != 'automatic'
             or not control.get('migration_complete') or control.get('approved_hash') != settings_hash(settings)):
         return None
+    if approval_mode and control.get('approval_policy_hash')!=settings_hash(settings):return None
     candidates = []
     for item in queue.db.list('outbox'):
-        if item.get('state') != 'queued' or item.get('campaign') != plan['id']:continue
+        if item.get('state') != 'queued':continue
+        if approval_mode:
+            if item.get('campaign'):continue
+        elif item.get('campaign') != plan['id']:continue
         zone = ZoneInfo(item['company_timezone'])
-        for day in sorted(plan['dates']):
+        local_now=datetime.fromtimestamp(now,timezone.utc).astimezone(zone)
+        days=[(local_now+timedelta(days=d)).date().isoformat() for d in range(9)] if approval_mode else sorted(plan['dates'])
+        for day in days:
             date = datetime.fromisoformat(day)
             if date.weekday() not in cfg['send_weekdays']:continue
             start = date.replace(hour=cfg['send_hours'][0],tzinfo=zone).timestamp()
@@ -84,9 +92,11 @@ def snapshot(queue, settings, now=None, timer=None):
     accepted_today = sum(v['state']=='sent' and v.get('attempted_at') is not None and
         datetime.fromtimestamp(v['attempted_at'],timezone.utc).astimezone(ZoneInfo(settings['sending']['timezone'])).date()==day for v in items)
     report = {'checked_at':iso(now),'paused':bool(control.get('paused')),
+        'delivery_model':control.get('delivery_model','campaign'),
         'delivery_enabled':os.getenv('SHINE_DELIVERY_ENABLED')=='true',
         'configuration_ready':bool(control.get('migration_complete') and control.get('test_verified')
-            and control.get('approved_hash')==settings_hash(settings) and settings['sending']['mode']=='automatic'),
+            and control.get('approved_hash')==settings_hash(settings) and settings['sending']['mode']=='automatic'
+            and (control.get('delivery_model')!='notion-approval' or control.get('approval_policy_hash')==settings_hash(settings))),
         'outstanding_attempt':bool(control.get('active_attempt')),
         'queued':counts['queued'],'held':counts['blocked'],
         'confirmed_sent':counts['sent'],'confirmed_sent_today':accepted_today,
@@ -106,6 +116,8 @@ def snapshot(queue, settings, now=None, timer=None):
     elif report['paused'] or not report['delivery_enabled']:overall='paused'
     elif not report['configuration_ready']:overall='blocked_configuration'
     elif report['notion_sync_pending'] or report['notion_sync_unverified']:overall='attention_notion_sync'
+    elif report['delivery_model']=='notion-approval' and not timer_verified:overall='attention_timer_unverified'
+    elif report['delivery_model']=='notion-approval':overall='operational' if report['queued'] else 'idle_awaiting_approvals'
     elif not plan:overall='idle_no_campaign'
     elif plan['sent_attempts']>=plan['maximum_sends']:overall='idle_campaign_complete'
     elif not timer_verified:overall='attention_timer_unverified'

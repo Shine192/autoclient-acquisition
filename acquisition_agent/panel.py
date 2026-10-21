@@ -203,7 +203,7 @@ class Panel:
                 except BlockingIOError:
                     raise ValueError('The worker is finishing a discovery or sync cycle. Wait briefly and retry; older workers must be stopped before updating.') from None
                 store.db.execute("UPDATE panel_tasks SET status='Running' WHERE id=?",(task_id,));store.db.commit()
-                prefs,profile,exclusions,_=self.settings()
+                prefs,profile,exclusions,sending=self.settings()
                 check_exclusions(store,prefs,exclusions)
                 if self.stopping.is_set() or store.paused():
                     raise ValueError('Agent paused or panel stopping; no task started')
@@ -220,7 +220,7 @@ class Panel:
                     def progress(value):
                         store.db.execute('UPDATE panel_tasks SET result=? WHERE id=?',(json.dumps(dict(value,session_id=session['id'])),task_id));store.db.commit()
                     result=run(store,session,prefs,profile,exclusions,progress,
-                        lambda: not self.stopping.is_set() and not store.paused())
+                        lambda: not self.stopping.is_set() and not store.paused(),sending_config=sending)
                 elif kind=='target-import':
                     session=targeting.get_session(store,payload.get('session_id',''))
                     result=targeting.import_batch(store,session,payload.get('leads'),prefs,profile,exclusions)

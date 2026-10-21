@@ -1,4 +1,9 @@
-# Shine — GitHub-hosted sender update
+# Shine — research and Notion approval sender
+
+Current workflow (21 October 2026): [two independent systems](docs/TWO-SYSTEM-WORKFLOW.md).
+The new `enable-approvals` operation switches the tested hosted sender to flexible
+Notion STATUS=Approve delivery without campaign dates or a campaign target.
+The campaign instructions below describe the retained legacy pilot mode.
 
 Decision recorded 20 October 2026: improve the existing GitHub Actions sender
 now. Keep the Mac installation for research and drafting. Defer Cloudflare
