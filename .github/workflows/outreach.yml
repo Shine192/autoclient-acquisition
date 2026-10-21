@@ -11,15 +11,15 @@ on:
   workflow_dispatch:
     inputs:
       operation:
-        description: 'Scheduled sending needs completed handover, test, policy and campaign'
+        description: 'Delivery controls; enable-approvals switches to flexible Notion approval'
         type: choice
         default: status
-        options: [status, dry-run, self-test, verify-test, activate, pause, resume, campaign, close, run, reconcile]
+        options: [status, dry-run, self-test, verify-test, activate, enable-approvals, pause, resume, campaign, close, run, reconcile]
       item_id:
         description: 'Test ID or uncertain outbox ID, when needed'
         type: string
       policy_hash:
-        description: 'Reviewed policy hash, required only for activate'
+        description: 'Reviewed policy hash, required for activate or enable-approvals'
         type: string
       campaign_target:
         description: 'New campaign maximum attempts: 1–100'
