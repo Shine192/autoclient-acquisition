@@ -40,9 +40,20 @@ class Worker:
             delivery.suppress(store, record['value'], record['reason'])
         return store
 
+    def reviewed_lead(self, store, seed):
+        if self.q.control().get('delivery_model')!='notion-approval':
+            return delivery.remote_lead(store,self.notion,dict(seed),persist=False)
+        # Notion is the editor: never let a longer historical seed override
+        # changed targeting, eligibility, evidence or compensation properties.
+        from .notion_import import read_lead
+        page=self.notion.request('pages/'+seed['notion_page_id'],'GET')
+        current=read_lead(page,self.s['preferences'])
+        if current['id']!=seed['id']:raise ValueError('Opportunity ID changed; review this record')
+        return delivery.remote_lead(store,self.notion,current,persist=False,page=page)
+
     def preflight(self, item, store):
         lead = self.q.db.get('lead_' + item['lead_id'])['data']
-        lead = delivery.remote_lead(store, self.notion, dict(lead), persist=False)
+        lead = self.reviewed_lead(store,lead)
         if lead.get('notion_status')!='Approve':raise ValueError('Notion approval was withdrawn')
         self.target_matches(lead, item['campaign'])
         draft = delivery.gate(store, lead, self.s['sending'], self.s['profile'], self.s['preferences'], self.s['exclusions'])
@@ -58,25 +69,26 @@ class Worker:
 
     def target_matches(self, lead, campaign_id):
         from acquisition_agent.targeting import validate_spec, city_matches
-        campaign=self.q.db.get('campaign_'+campaign_id)
-        if not campaign:raise ValueError('Unknown campaign')
+        approval_mode=self.q.control().get('delivery_model')=='notion-approval'
+        campaign=self.q.db.get('campaign_'+campaign_id) if campaign_id else None
+        if not campaign and not (approval_mode and not campaign_id):raise ValueError('Unknown campaign or approval policy')
         from acquisition_agent.targeting import target_check
         if not lead.get('target_session') or target_check(lead):raise ValueError('Cloud campaign requires sourced location/type/industry evidence')
-        if not campaign.get('target'):return
+        if not campaign or not campaign.get('target'):return
         target=validate_spec(campaign['target'],self.s['preferences'])
         if (lead.get('country')!=target['country'] or not city_matches(lead.get('location_city',''),target['city']) or
             lead.get('type')!=target['company_type'] or lead.get('kind')!=target['kind'] or
             (target['industries'] and lead.get('industry') not in target['industries'])):
             raise ValueError('Lead does not match this campaign targeting')
 
-    def enqueue(self, lead_id, campaign_id):
+    def enqueue(self, lead_id, campaign_id=None):
         record = self.q.db.get('lead_' + lead_id)
         if not record: raise ValueError('Import a researched lead first')
         self.target_matches(record['data'],campaign_id)
         with tempfile.TemporaryDirectory() as folder:
             store = self.local(folder)
             try:
-                lead = delivery.remote_lead(store, self.notion, dict(record['data']), persist=False)
+                lead = self.reviewed_lead(store,record['data'])
                 if lead.get('notion_status')!='Approve':raise ValueError('Set STATUS to Approve in Notion')
                 draft = delivery.gate(store, lead, self.s['sending'], self.s['profile'], self.s['preferences'], self.s['exclusions'])
             finally: store.db.close()
@@ -172,10 +184,15 @@ class Worker:
                 finally:store.db.close()
             dispatch = time.time() if timestamp is None else timestamp
             if not permitted_time(cfg, datetime.fromtimestamp(dispatch, timezone.utc), lead): continue
-            control=self.q.control();plan=self.q.db.get('campaign_'+item['campaign'])
+            control=self.q.control()
+            plan=self.q.db.get('campaign_'+item['campaign']) if item.get('campaign') else None
             day=datetime.fromtimestamp(dispatch,timezone.utc).astimezone(ZoneInfo(cfg['timezone'])).date().isoformat()
-            if not plan or datetime.fromtimestamp(dispatch,timezone.utc).astimezone(ZoneInfo(item['company_timezone'])).date().isoformat() not in plan['dates']:continue
-            if plan['sent_attempts']>=plan['maximum_sends'] or control.get('days',{}).get(day,0)>=cfg['daily_limit']:continue
+            if control.get('delivery_model')=='notion-approval':
+                if item.get('campaign') or control.get('approval_policy_hash')!=settings_hash(self.s):continue
+            else:
+                if not plan or datetime.fromtimestamp(dispatch,timezone.utc).astimezone(ZoneInfo(item['company_timezone'])).date().isoformat() not in plan['dates']:continue
+                if plan['sent_attempts']>=plan['maximum_sends']:continue
+            if control.get('days',{}).get(day,0)>=cfg['daily_limit']:continue
             if control.get('last_attempt',0) and dispatch-control['last_attempt']<cfg['minimum_interval_seconds']:continue
             self.report('durable_claim')
             self.q.claim(item['id'], dispatch, settings_hash(self.s), cfg['daily_limit'],

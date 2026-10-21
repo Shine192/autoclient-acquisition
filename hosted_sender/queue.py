@@ -1,4 +1,4 @@
-"""Firestore state machine. Never put external side effects in transactions."""
+"""Durable delivery state machine. External side effects stay outside transactions."""
 import hashlib
 import json
 from datetime import datetime, timezone
@@ -62,7 +62,7 @@ class Queue:
             existing = tx.get('outbox_' + key)
             reservations = [tx.get(k) for k in refs]
             if existing:
-                if existing['state']=='blocked' and not existing.get('attempted_at') and existing.get('approval_reset_done'):
+                if existing['state'] in ('blocked', 'cancelled') and not existing.get('attempted_at') and existing.get('approval_reset_done'):
                     if any(r and r.get('outbox_id')!=key for r in reservations):raise ValueError('Company or recipient already reserved/contacted')
                     replacement=dict(item,kind='outbox',state='queued',attempted_at=None)
                     tx.put('outbox_'+key,replacement)
@@ -82,7 +82,8 @@ class Queue:
         def op(tx):
             c, item = tx.get('control'), tx.get('outbox_' + key)
             if not item: raise ValueError('Unknown queue item')
-            campaign = tx.get('campaign_' + item['campaign'])
+            approval_mode = c and c.get('delivery_model') == 'notion-approval'
+            campaign = tx.get('campaign_' + item['campaign']) if item.get('campaign') else None
             domains = [item['company'], item['recipient'].split('@')[-1]]
             suppression_values = {item['recipient'].lower()}
             for domain in domains:
@@ -90,15 +91,21 @@ class Queue:
                 suppression_values.update('.'.join(parts[i:]) for i in range(max(1,len(parts)-1)))
             suppressions = [tx.get('suppress_' + digest(v)) for v in sorted(suppression_values)]
             if not c or c['paused'] or not c['migration_complete']: raise ValueError('Paused or migration incomplete')
-            if 'active_campaign' in c and c['active_campaign']!=item['campaign']:raise ValueError('Campaign is not active')
+            if approval_mode:
+                if item.get('campaign') or c.get('approval_policy_hash') != settings_hash:
+                    raise ValueError('Approval delivery policy is not active')
+            elif 'active_campaign' in c and c['active_campaign']!=item.get('campaign'):raise ValueError('Campaign is not active')
             if item['state'] != 'queued': raise ValueError('Already attempted or blocked')
             if c.get('active_attempt'): raise ValueError('Unresolved send blocks all new sends')
             if c.get('approved_hash') != settings_hash or not c.get('test_verified'):
                 raise ValueError('Cloud policy and live self-inbox/reply test need approval')
-            if not campaign or campaign['settings_hash'] != settings_hash: raise ValueError('Campaign policy changed')
-            local_day = datetime.fromtimestamp(timestamp, timezone.utc).astimezone(ZoneInfo(item['company_timezone'])).date().isoformat()
-            if local_day not in campaign['dates']: raise ValueError('Not a selected campaign date')
-            if campaign['sent_attempts'] >= campaign['maximum_sends']: raise ValueError('Campaign cap reached')
+            local = datetime.fromtimestamp(timestamp, timezone.utc).astimezone(ZoneInfo(item['company_timezone']))
+            if local.weekday() >= 5 or not 8 <= local.hour < 11:
+                raise ValueError('Outside company-local weekday 08:00–11:00')
+            if not approval_mode:
+                if not campaign or campaign['settings_hash'] != settings_hash: raise ValueError('Campaign policy changed')
+                if local.date().isoformat() not in campaign['dates']: raise ValueError('Not a selected campaign date')
+                if campaign['sent_attempts'] >= campaign['maximum_sends']: raise ValueError('Campaign cap reached')
             if any(suppressions): raise ValueError('Suppressed')
             if timestamp < item['due_at']: raise ValueError('Not due')
             if c.get('days', {}).get(day, 0) >= daily_limit: raise ValueError('Daily cap reached')
@@ -108,9 +115,12 @@ class Queue:
             c.setdefault('days', {})[day] = c.get('days', {}).get(day, 0) + 1
             # Keep a bounded accounting window; no delivery identities are deleted.
             c['days'] = dict(sorted(c['days'].items())[-90:])
-            campaign['sent_attempts'] += 1
+            if campaign:campaign['sent_attempts'] += 1
+            c['total_attempts'] = c.get('total_attempts', 0) + 1
             item.update(state='sending', attempted_at=timestamp)
-            tx.put('control', c); tx.put('campaign_' + item['campaign'], campaign); tx.put('outbox_' + key, item)
+            tx.put('control', c)
+            if campaign:tx.put('campaign_' + item['campaign'], campaign)
+            tx.put('outbox_' + key, item)
             return item
         return self.db.transaction(op)
 

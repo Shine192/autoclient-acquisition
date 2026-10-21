@@ -43,7 +43,10 @@ def search(query, limit):
 
 def rich(text):
     text = str(text or "")
-    return [{"type": "text", "text": {"content": text[i:i + 1900]}} for i in range(0, min(len(text), 19000), 1900)]
+    if len(text)>190000:raise ValueError('Notion text exceeds 100 rich-text blocks; narrow the research documents')
+    # Never truncate JSON research notes: the hosted importer needs every quote
+    # and the closing JSON delimiters, including beyond the old 19,000 limit.
+    return [{"type": "text", "text": {"content": text[i:i + 1900]}} for i in range(0, len(text), 1900)]
 
 
 def text_value(prop):
@@ -76,6 +79,8 @@ class Notion:
             if 'properties' in data:data['properties']=compat.encode_props(data['properties'])
             if 'filter' in data:data['filter']=compat.encode_filter(data['filter'])
         # Sequential calls stay below the typical connection request rate.
+        if data is not None and len(json.dumps(data).encode())>480000:
+            raise ValueError('Notion request exceeds the safe payload size; narrow research documents before syncing')
         time.sleep(0.36)
         result=api_json("https://api.notion.com/v1/" + path, method, data, self.headers)
         def decode(page, force=False):

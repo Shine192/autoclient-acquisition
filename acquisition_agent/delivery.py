@@ -159,10 +159,10 @@ def field(props, name):
     return text_value(props.get(name, {}))
 
 
-def remote_lead(store, notion, lead, persist=True):
+def remote_lead(store, notion, lead, persist=True, page=None):
     if not lead.get('notion_page_id'):
         raise ValueError('Sync lead to Notion before queueing')
-    page = notion.request('pages/' + lead['notion_page_id'], 'GET')
+    if page is None:page = notion.request('pages/' + lead['notion_page_id'], 'GET')
     if page.get('archived') or page.get('in_trash'):
         raise ValueError('Notion record is archived')
     p = page['properties']
