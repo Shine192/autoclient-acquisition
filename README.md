@@ -4,9 +4,9 @@ Requested workflow (21 October 2026): [two independent systems](docs/TWO-SYSTEM-
 The new `enable-approvals` operation switches the tested hosted sender to flexible
 Notion STATUS=Approve delivery without campaign dates or a campaign target.
 The campaign instructions below describe the retained legacy pilot mode.
-The new mode is not deployed yet: the current GitHub login cannot publish the
-required workflow change without `workflow` scope. Live Firecrawl research also
-needs a replacement for the saved key, which returned HTTP 401 on 21 October.
+The new mode was deployed and activated on 21 October 2026. The replacement
+Firecrawl key passed its credential check. Genuine timer events still have
+multi-hour gaps; timely unattended dispatch remains unverified.
 
 Decision recorded 20 October 2026: improve the existing GitHub Actions sender
 now. Keep the Mac installation for research and drafting. Defer Cloudflare
@@ -69,7 +69,8 @@ The legacy hosted sender is activated. A live approved send, saved Gmail receipt
 Notion status update and recovery without redispatch were verified on 20 October
 2026. Genuine timer schedule events were observed on 21 October, but with
 multi-hour gaps; this is not evidence of reliable five-minute operation.
-The new campaign-free Notion approval mode remains pending activation.
+The campaign-free Notion approval mode was activated on 21 October 2026 at
+20:52 Bangkok. [Activation receipt](https://github.com/Shine192/autoclient-acquisition/actions/runs/39611741059).
 The repository transfer to Shine192/autoclient-acquisition was verified on
 20 October 2026 (repository ID 1166990339). The connected account is Shine192
 and has repository write access. Never paste credentials into ChatGPT.

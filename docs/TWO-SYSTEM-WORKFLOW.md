@@ -1,17 +1,16 @@
 # Research on demand, approve in Notion, send in company time
 
-## Rollout status: not activated
+## Rollout status: activated
 
-The implementation is on the review branch. The current GitHub OAuth login lacks
-`workflow` scope, preventing the workflow's `enable-approvals` choice from being
-published. The owner can reconnect with that permission, or run
-`gh auth refresh -h github.com -s workflow` privately in Terminal. The workflow
-patch is preserved in the local `feature/notion-approval-delivery` branch.
-After publishing and passing CI, enable the new mode once with the current
-tested policy hash. A code merge alone does not activate it.
+PR #10 passed CI and merged. The hosted `enable-approvals` operation succeeded on
+21 October 2026 at 20:52 Bangkok under the previously tested sender policy.
+[Activation receipt](https://github.com/Shine192/autoclient-acquisition/actions/runs/39611741059).
+It reported delivery_model=notion-approval, campaign_required=false, 50/day,
+company-local 08–11, and history_preserved=true. Do not repeat handover or reset
+the ledger. Timer cadence remains unreliable; activation is not proof that
+GitHub will check on time.
 
-The saved Firecrawl key returned HTTP 401; replace it through the original
-Configure-Automatic-Research.command before live searching. The saved OpenAI
+The replacement Firecrawl key passed its read-only credential check. The saved OpenAI
 credential passed a read-only check; no paid generation was used for that check.
 Three sourced business-introduction examples were saved as Draft in the original
 Notion database. Two remain below the configured fit threshold; approval must
