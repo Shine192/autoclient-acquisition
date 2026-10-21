@@ -42,7 +42,8 @@ def read_lead(page,preferences):
 
 def refresh(queue,notion,settings,campaign_id=None):
     pages=list(notion.query(settings['preferences']['notion_leads_source_id']))
-    keys={};contacts={};output={'imported':0,'held':0,'queued':0}
+    keys={};contacts={};invalid=set();output={'imported':0,'held':0,'queued':0}
+    approval_mode=queue.control().get('delivery_model')=='notion-approval'
     for p in pages:
         key=value(p['properties'],'Deduplication Key')
         if key:
@@ -82,13 +83,14 @@ def refresh(queue,notion,settings,campaign_id=None):
         try:
             lead=read_lead(page,settings['preferences'])
         except (ValueError,KeyError,TypeError):
-            if not existing:
+            if approval_mode or not existing:
+                invalid.add(key)
                 output['held']+=1
                 notion.request('pages/'+page['id'],'PATCH',{'properties':{'Delivery State':{'rich_text':rich('Held: complete structured research is missing. Repair and sync from the Mac dashboard.')}}})
                 continue
             lead=dict(existing['data']);lead['notion_page_id']=page['id']
         # A complete local seed is kept if Notion's stored excerpts are shorter.
-        if existing and sum(len(d.get('text','')) for d in existing['data'].get('source_documents',[]))>sum(len(d.get('text','')) for d in lead.get('source_documents',[])):
+        if not approval_mode and existing and sum(len(d.get('text','')) for d in existing['data'].get('source_documents',[]))>sum(len(d.get('text','')) for d in lead.get('source_documents',[])):
             prior=dict(existing['data']);prior['notion_page_id']=page['id'];lead=prior
         def save(tx):tx.put('lead_'+key,{'kind':'lead','data':lead})
         queue.db.transaction(save);output['imported']+=1
@@ -96,6 +98,7 @@ def refresh(queue,notion,settings,campaign_id=None):
         from .worker import Worker
         worker=Worker(queue,settings,None,notion)
         for key,page in keys.items():
+            if key in invalid:continue
             if (page['properties'].get('STATUS',{}).get('status') or {}).get('name')!='Approve':continue
             if not queue.db.get('lead_'+key):continue
             try:

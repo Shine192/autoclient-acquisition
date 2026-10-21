@@ -40,9 +40,20 @@ class Worker:
             delivery.suppress(store, record['value'], record['reason'])
         return store
 
+    def reviewed_lead(self, store, seed):
+        if self.q.control().get('delivery_model')!='notion-approval':
+            return delivery.remote_lead(store,self.notion,dict(seed),persist=False)
+        # Notion is the editor: never let a longer historical seed override
+        # changed targeting, eligibility, evidence or compensation properties.
+        from .notion_import import read_lead
+        page=self.notion.request('pages/'+seed['notion_page_id'],'GET')
+        current=read_lead(page,self.s['preferences'])
+        if current['id']!=seed['id']:raise ValueError('Opportunity ID changed; review this record')
+        return delivery.remote_lead(store,self.notion,current,persist=False,page=page)
+
     def preflight(self, item, store):
         lead = self.q.db.get('lead_' + item['lead_id'])['data']
-        lead = delivery.remote_lead(store, self.notion, dict(lead), persist=False)
+        lead = self.reviewed_lead(store,lead)
         if lead.get('notion_status')!='Approve':raise ValueError('Notion approval was withdrawn')
         self.target_matches(lead, item['campaign'])
         draft = delivery.gate(store, lead, self.s['sending'], self.s['profile'], self.s['preferences'], self.s['exclusions'])
@@ -77,7 +88,7 @@ class Worker:
         with tempfile.TemporaryDirectory() as folder:
             store = self.local(folder)
             try:
-                lead = delivery.remote_lead(store, self.notion, dict(record['data']), persist=False)
+                lead = self.reviewed_lead(store,record['data'])
                 if lead.get('notion_status')!='Approve':raise ValueError('Set STATUS to Approve in Notion')
                 draft = delivery.gate(store, lead, self.s['sending'], self.s['profile'], self.s['preferences'], self.s['exclusions'])
             finally: store.db.close()

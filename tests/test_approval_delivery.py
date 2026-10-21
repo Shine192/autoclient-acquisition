@@ -19,6 +19,22 @@ class ApprovalDeliveryTests(unittest.TestCase):
     def setUp(self):
         self.f=test_hosted_worker.WorkerTests();self.f.setUp();self.addCleanup(self.f.doCleanups)
         self.q,self.s=self.f.q,self.f.s
+        self.f.lead['id']='a'*16
+        self.f.db.records['lead_'+self.f.lead['id']]=self.f.db.records.pop('lead_lead')
+        self.f.db.records['lead_'+self.f.lead['id']]['data']['id']=self.f.lead['id']
+        original_page=self.f.page
+        def complete_page():
+            page=original_page();lead=self.f.lead
+            page['properties'].update({'Name':{'title':rich(lead['company'])},
+                'Deduplication Key':{'type':'rich_text','rich_text':rich(lead['id'])},
+                'Research Notes':{'type':'rich_text','rich_text':rich(research_notes(lead))},
+                'COUNTRY':{'type':'rich_text','rich_text':rich('UAE')},
+                'Role':{'type':'rich_text','rich_text':rich(lead['title'])},
+                'Job URL':{'url':lead['url']},'WEBSITE':{'url':lead['website']},
+                'Contact Source URL':{'url':lead['contact_source_url']},
+                'Type':{'select':{'name':'Brand'}},'Opportunity Type':{'select':{'name':'Cold Outreach'}}})
+            return page
+        self.f.page=complete_page
         self.q.db.records['control'].update(mac_sender_disabled=True,test_hash=settings_hash(self.s))
         self.addCleanup(patch.stopall)
         patch.dict(os.environ,{'SHINE_DELIVERY_ENABLED':'true'}).start()
@@ -87,14 +103,14 @@ class ApprovalDeliveryTests(unittest.TestCase):
             self.assertEqual(f.gmail.send.call_count,n+1)
 
     def test_next_week_approval_needs_no_campaign_date(self):
-        self.enable();item=self.f.w.enqueue('lead')
+        self.enable();item=self.f.w.enqueue(self.f.lead['id'])
         t=datetime(2026,10,28,6,tzinfo=timezone.utc).timestamp()
         self.q.db.records['outbox_'+item['id']]['due_at']=t
         self.assertEqual(self.f.w.tick(t)['state'],'sent')
         self.assertEqual(self.q.control()['days']['2026-10-28'],1)
 
     def test_withdrawn_approval_or_dnc_stops_dispatch(self):
-        self.enable();item=self.f.w.enqueue('lead')
+        self.enable();item=self.f.w.enqueue(self.f.lead['id'])
         self.q.db.records['outbox_'+item['id']]['due_at']=self.f.t
         page=self.f.page();page['properties']['STATUS']={'status':{'name':'Do Not Contact'}}
         self.f.notion.request.side_effect=lambda *args:copy.deepcopy(page)
@@ -102,7 +118,7 @@ class ApprovalDeliveryTests(unittest.TestCase):
         self.f.gmail.send.assert_not_called()
 
     def test_atomic_claim_enforces_local_window_and_new_policy(self):
-        self.enable();item=self.f.w.enqueue('lead')
+        self.enable();item=self.f.w.enqueue(self.f.lead['id'])
         self.q.db.records['outbox_'+item['id']]['due_at']=self.f.t
         with self.assertRaisesRegex(ValueError,'Outside company-local'):
             self.q.claim(item['id'],self.f.t+7200,settings_hash(self.s),50,180,'Asia/Bangkok')
@@ -111,7 +127,7 @@ class ApprovalDeliveryTests(unittest.TestCase):
             self.q.claim(item['id'],self.f.t,settings_hash(self.s),50,180,'Asia/Bangkok')
 
     def test_health_shows_next_weekday_without_campaign(self):
-        self.enable();item=self.f.w.enqueue('lead')
+        self.enable();item=self.f.w.enqueue(self.f.lead['id'])
         self.q.db.records['outbox_'+item['id']]['due_at']=0
         friday=datetime(2026,10,23,8,tzinfo=timezone.utc).timestamp()
         report=snapshot(self.q,self.s,friday,timer={'state':'never_observed'})
@@ -127,3 +143,20 @@ class ApprovalDeliveryTests(unittest.TestCase):
             result=run(self.q,self.s,self.f.gmail,self.f.notion)
         importer.assert_called_once();worker.return_value.tick.assert_called_once()
         self.assertEqual(result['sent_this_run'],0)
+
+    def test_new_notion_evidence_overrides_longer_historical_seed(self):
+        self.enable();key=self.f.lead['id'];page=self.f.page()
+        self.q.db.records['lead_'+key]['data']['source_documents'][0]['text']+=' historical padding'*200
+        page['properties']['COUNTRY']={'type':'rich_text','rich_text':rich('Outside approved markets')}
+        self.f.notion.request.side_effect=lambda *args:copy.deepcopy(page)
+        with self.assertRaisesRegex(ValueError,'Country'):self.f.w.enqueue(key)
+        self.f.gmail.send.assert_not_called()
+
+    def test_invalid_research_after_queueing_blocks_dispatch(self):
+        self.enable();item=self.f.w.enqueue(self.f.lead['id'])
+        self.q.db.records['outbox_'+item['id']]['due_at']=self.f.t
+        page=self.f.page();page['properties']['Research Notes']['rich_text']=rich('{truncated')
+        self.f.notion.request.side_effect=lambda *args:copy.deepcopy(page)
+        self.assertEqual(self.f.w.tick(self.f.t)['state'],'no-due-send')
+        self.assertEqual(self.q.db.get('outbox_'+item['id'])['state'],'blocked')
+        self.f.gmail.send.assert_not_called()

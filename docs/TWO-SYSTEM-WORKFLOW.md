@@ -1,5 +1,22 @@
 # Research on demand, approve in Notion, send in company time
 
+## Rollout status: not activated
+
+The implementation is on the review branch. The current GitHub OAuth login lacks
+`workflow` scope, preventing the workflow's `enable-approvals` choice from being
+published. The owner can reconnect with that permission, or run
+`gh auth refresh -h github.com -s workflow` privately in Terminal. The workflow
+patch is preserved in the local `feature/notion-approval-delivery` branch.
+After publishing and passing CI, enable the new mode once with the current
+tested policy hash. A code merge alone does not activate it.
+
+The saved Firecrawl key returned HTTP 401; replace it through the original
+Configure-Automatic-Research.command before live searching. The saved OpenAI
+credential passed a read-only check; no paid generation was used for that check.
+Three sourced business-introduction examples were saved as Draft in the original
+Notion database. Two remain below the configured fit threshold; approval must
+not bypass that limit. No example email was sent.
+
 ## System 1: research and drafting
 
 Open the Mac dashboard, choose country/city, company type, industries and the
@@ -64,6 +81,8 @@ Local tests cover three independently approved messages on different days and
 weeks, source and portfolio validation, timezone/weekend rules, final approval
 withdrawal, daily limits, atomic duplicate protection, ambiguous Gmail delivery,
 Notion receipt retries, reply stops, and research JSON longer than 19,000 chars.
+The approval sender re-reads the complete Notion targeting and evidence before
+each dispatch; a longer historical copy cannot override a later Notion edit.
 
 Use status to inspect delivery_model=notion-approval, configuration_ready,
 queued, uncertain, notion_sync_pending and actual schedule events. A manual run
