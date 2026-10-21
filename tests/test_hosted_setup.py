@@ -172,6 +172,11 @@ class NotionImportTests(unittest.TestCase):
  def test_incomplete_structured_research_is_not_fabricated(self):
   self.page['properties']['Research Notes']['rich_text']=rich('{truncated')
   with self.assertRaises(ValueError):read_lead(self.page,self.prefs)
+ def test_posted_job_constraints_survive_notion_import(self):
+  self.page['properties'].update({'Hours Per Week':{'number':15},'Rate Per Email':{'number':25},'Budget Currency':{'type':'rich_text','rich_text':rich('USD')},'Posting Date':{'date':{'start':'2026-10-21'}}})
+  lead=read_lead(self.page,self.prefs)
+  self.assertEqual(lead['hours_per_week'],15);self.assertEqual(lead['rate_per_email'],25)
+  self.assertEqual(lead['currency'],'USD');self.assertEqual(lead['posted_at'],'2026-10-21')
  def test_duplicate_notion_ids_stop_before_queue_or_send(self):
   n=Mock();n.query.return_value=[self.page,copy.deepcopy(self.page)];q=Queue(Memory());q.init()
   with self.assertRaisesRegex(ValueError,'Duplicate'):refresh(q,n,{'preferences':self.prefs})

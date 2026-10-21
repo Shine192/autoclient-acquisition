@@ -26,7 +26,7 @@ def read_lead(page,preferences):
           'remote_eligibility':(p.get('Remote Eligibility',{}).get('select') or {}).get('name','Unknown'),
           'rate_per_email':p.get('Rate Per Email',{}).get('number'),
           'currency':value(p,'Budget Currency'),
-          'weekly_hours':p.get('Hours Per Week',{}).get('number'),
+          'hours_per_week':p.get('Hours Per Week',{}).get('number'),
           'posted_at':(p.get('Posting Date',{}).get('date') or {}).get('start'),
           'discovered_at':notes.get('collected',''),'source_text':doc['text'],'source_documents':notes['source_documents'],
           'research_source_url':notes.get('source',doc['url']),'research_level':notes.get('research_level','Supplied research'),
