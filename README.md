@@ -213,6 +213,24 @@ still never be reset or reinitialized.
 
 ## Testing
 
+### Gmail App Password transport
+
+Set the repository variable `SHINE_MAIL_TRANSPORT=app-password` and repository
+secrets `EMAIL_USER` and `EMAIL_PASS` to use Gmail SMTP and read-only IMAP.
+Leave the delivery timer disabled during migration. Run `auth-check` first:
+this authenticates both protocols without sending a message or changing the
+delivery ledger. `status` alone does not check Gmail credentials.
+
+Gmail All Mail, Spam and Trash must be accessible over IMAP for comprehensive
+reply/bounce checks. Existing Gmail API message/thread IDs remain compatible
+through Gmail's stable IMAP identifiers. No ledger reset or Notion status reset
+is necessary. SMTP acceptance without a visible Sent receipt becomes an
+unresolved attempt: reconcile it; never automatically resend it.
+
+OAuth remains available by leaving `SHINE_MAIL_TRANSPORT` unset. Do not delete
+old credentials or sending history as part of transport migration. This change
+does not enable delivery, approve records, or guarantee GitHub timer cadence.
+
 Run: python -B -m unittest discover -s tests -q
 
 Tests use sample opportunities, fake Gmail/Notion and an in-memory Git server.

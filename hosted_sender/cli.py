@@ -13,6 +13,9 @@ from acquisition_agent.delivery import message_text
 REPOSITORY='Shine192/autoclient-acquisition'
 
 def gmail(folder):
+    if os.getenv('SHINE_MAIL_TRANSPORT') == 'app-password':
+        from acquisition_agent.gmail_password import GmailPassword
+        return GmailPassword(os.environ['EMAIL_USER'], os.environ['EMAIL_PASS'])
     token={name:os.environ['GMAIL_'+name.upper()] for name in ('client_id','client_secret','refresh_token')}
     token.update(expires_at=0)
     path=Path(folder)/'gmail.json';private_json(path,token)
@@ -183,7 +186,7 @@ def run(q,s,g,notion,max_seconds=225,report=lambda stage:None):
 
 def main():
     parser=argparse.ArgumentParser(description='GitHub delivery. No implicit initialization or reset.')
-    parser.add_argument('command',nargs='?',default='status',choices=['status','dry-run','self-test','verify-test','activate','enable-approvals','pause','resume','campaign','close','run','reconcile'])
+    parser.add_argument('command',nargs='?',default='status',choices=['status','auth-check','dry-run','self-test','verify-test','activate','enable-approvals','pause','resume','campaign','close','run','reconcile'])
     parser.add_argument('--id',default=os.getenv('SHINE_ITEM_ID',''))
     parser.add_argument('--policy-hash',default=os.getenv('SHINE_POLICY_HASH',''))
     parser.add_argument('--target',type=int,default=int(os.getenv('SHINE_CAMPAIGN_TARGET','20') or '20'))
@@ -213,7 +216,10 @@ def main():
             print(json.dumps({'notion_rows':len(pages),'approved':sum((p['properties'].get('STATUS',{}).get('status') or {}).get('name')=='Approve' for p in pages),'mutations':False,**policy_summary(s)}));return
         with tempfile.TemporaryDirectory(prefix='shine-github-') as folder:
             g=gmail(folder)
-            if args.command=='self-test':result=self_test(q,s,g)
+            if args.command=='auth-check':
+                if g.identity()!=s['sending']['sender'].lower():raise ValueError('Wrong Gmail sender')
+                result={'authentication':'ok','transport':os.getenv('SHINE_MAIL_TRANSPORT','oauth'),'emails_sent':0}
+            elif args.command=='self-test':result=self_test(q,s,g)
             elif args.command=='verify-test':result=verify_test(q,s,g,args.id)
             elif args.command=='reconcile':result=Worker(q,s,g,notion).reconcile(args.id)
             else:
