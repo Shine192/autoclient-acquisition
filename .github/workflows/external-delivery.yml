@@ -15,7 +15,12 @@ permissions:
 
 jobs:
   delivery:
-    if: vars.SHINE_EXTERNAL_TIMER_ENABLED == 'true' && vars.SHINE_DELIVERY_ENABLED == 'true'
+    # Receiver access alone authorizes review, never external production sends.
+    # An accidental operation=run during setup must not dispatch email.
+    if: >-
+      vars.SHINE_EXTERNAL_TIMER_ENABLED == 'true' && vars.SHINE_DELIVERY_ENABLED == 'true' &&
+      (inputs.operation == 'review' ||
+       (inputs.operation == 'run' && vars.SHINE_EXTERNAL_SEND_ENABLED == 'true'))
     permissions:
       contents: write
       actions: read
