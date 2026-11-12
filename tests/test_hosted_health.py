@@ -68,6 +68,17 @@ class HealthTests(unittest.TestCase):
     def test_no_timer_is_not_presented_as_operational_after_manual_check(self):
         self.assertEqual(self.report()['overall_state'],'attention_timer_unverified')
 
+    def test_approval_blockers_before_queue_are_not_hidden_and_stale_is_unknown(self):
+        self.db.records['control'].update(delivery_model='notion-approval',approval_policy_hash=settings_hash(self.s))
+        self.db.records['notion_approval_health']={'checked_at':self.now,'settings_hash':settings_hash(self.s),'approved':2,'blocked':2}
+        timer={'state':'recent_success','last_success_at':health.iso(self.now)}
+        report=health.snapshot(self.q,self.s,self.now,timer=timer)
+        self.assertEqual(report['notion_approval_review']['blocked'],2)
+        self.assertEqual(report['overall_state'],'attention_approved_but_blocked')
+        report=health.snapshot(self.q,self.s,self.now+1201,timer=timer)
+        self.assertEqual(report['notion_approval_review']['state'],'stale')
+        self.assertIsNone(report['notion_approval_review']['blocked'])
+
     def test_sent_counts_exclude_test_and_keep_pending_sync_separate(self):
         self.db.records['outbox_a'].update(state='sent',attempted_at=self.now,notion_sync_pending=True)
         self.db.records['outbox_test']={'kind':'outbox','mode':'test','state':'sent','attempted_at':self.now}

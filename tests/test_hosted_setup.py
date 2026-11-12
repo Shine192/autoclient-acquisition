@@ -15,6 +15,16 @@ import test_review
 
 ROOT=Path(__file__).resolve().parent.parent
 class SetupTests(unittest.TestCase):
+ def test_external_trigger_is_opt_in_defaults_to_review_and_uses_shared_sender(self):
+  import yaml
+  data=yaml.load((ROOT/'.github/workflows/external-delivery.yml').read_text(),Loader=yaml.BaseLoader)
+  self.assertEqual(data['on']['workflow_dispatch']['inputs']['operation']['default'],'review')
+  self.assertNotIn('schedule',data['on'])
+  self.assertIn("SHINE_EXTERNAL_TIMER_ENABLED == 'true'",data['jobs']['delivery']['if'])
+  self.assertEqual(data['jobs']['delivery']['uses'],'./.github/workflows/outreach.yml')
+  sender=yaml.load((ROOT/'.github/workflows/outreach.yml').read_text(),Loader=yaml.BaseLoader)
+  self.assertEqual(sender['concurrency']['group'],'shine-production-delivery')
+  self.assertIn('review',sender['on']['workflow_dispatch']['inputs']['operation']['options'])
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name)
   shutil.copytree(ROOT/'config',self.root/'config');p=json.loads((self.root/'config/preferences.json').read_text());p['notion_leads_source_id']=SOURCE;(self.root/'config/preferences.json').write_text(json.dumps(p))

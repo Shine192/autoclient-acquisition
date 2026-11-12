@@ -121,7 +121,9 @@ def target_check(lead):
     spec=lead['target_session']['spec']; documents=lead['source_documents']; evidence=lead.get('target_evidence',{})
     reasons=[]
     for key in ('location','company_type','industry'):
-        if key=='industry' and not spec['industries']:continue
+        # An optional agency industry still earns fit points. It must have
+        # the same literal evidence as a selected brand industry.
+        if key=='industry' and not spec['industries'] and not lead.get('industry'):continue
         item=evidence.get(key,{})
         quote=item.get('quote','');url=item.get('url','')
         try: matches=[d['text'] for d in documents if canonical_url(d['url'])==canonical_url(url)]

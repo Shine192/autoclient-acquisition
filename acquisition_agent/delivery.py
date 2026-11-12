@@ -228,53 +228,71 @@ def check_draft(lead, profile, config):
     return draft
 
 
-def gate(store, lead, config, profile, prefs, exclusions, follow=False):
+def gate_errors(store, lead, config, profile, prefs, exclusions, follow=False):
+    """Evaluate independent delivery requirements without reserving a send."""
+    init(store)
+    issues = []
+    from .approval_checks import pricing_issue
+    price = pricing_issue(lead, prefs)
+    if price:
+        issues.append(price)
     if lead.get('target_session') and config['mode'] != 'test':
         from .targeting import target_check
-        if target_check(lead) or not lead.get('targeting_reviewed'):
-            raise ValueError('Research needs a sourced city, company type and industry. See Review Summary in Notion')
+        issues.extend(target_check(lead))
+        if not lead.get('targeting_reviewed'):
+            issues.append('Research needs a sourced city, company type and industry. See Review Summary in Notion')
     if config['mode'] != 'test':
-        delivery_zone(config, lead)
+        try: delivery_zone(config, lead)
+        except (ValueError, KeyError, TypeError) as exc: issues.append(str(exc))
     if store.paused():
-        raise ValueError('Agent is paused')
+        issues.append('Agent is paused')
     if not exclusions.get('confirmed'):
-        raise ValueError('Confirm exclusion list before delivery')
+        issues.append('Confirm exclusion list before delivery')
     if config['mode'] == 'automatic' and lead.get('is_demo'):
-        raise ValueError('Demo opportunities cannot be sent to external recipients')
+        issues.append('Demo opportunities cannot be sent to external recipients')
     assessment = assess(lead, prefs, exclusions)
     if assessment['status'] in ('Closed', 'Do Not Contact') or lead.get('status') in STOP or lead.get('do_not_contact'):
-        raise ValueError('Opportunity is closed, contacted or suppressed')
+        issues.append('Opportunity is closed, contacted or suppressed')
     address = lead.get('email', '')
     if not re.fullmatch(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}', address):
-        raise ValueError('No valid published application address; use official portal')
+        issues.append('No valid published application address; use official portal')
     company = hostname(lead.get('website') or lead['url'])
     if suppressed(store, address, company):
-        raise ValueError('Suppression list blocks this contact')
+        issues.append('Suppression list blocks this contact')
     if address not in lead.get('email_candidates', []) or not lead.get('contact_source_url'):
-        raise ValueError('Recipient does not match published evidence')
+        issues.append('Recipient does not match published evidence')
     if lead.get('kind') not in config['allowed_kinds'] or lead.get('country') not in prefs['countries']:
-        raise ValueError('Outside approved targeting')
+        issues.append('Outside approved targeting')
     if config['mode'] != 'test':
         if assessment['score'] < config['minimum_fit_score']:
-            raise ValueError('Below qualification threshold')
+            issues.append(f"Sourced fit {assessment['score']}/100; approved minimum {config['minimum_fit_score']} (Below qualification threshold)")
         allowed_statuses = ('Ready',) if config['require_row_approval'] else ('Ready', 'Draft')
         if not follow and lead.get('status') not in allowed_statuses:
-            raise ValueError('Review the message in Notion and set STATUS to Approve')
+            issues.append('Review the message in Notion and set STATUS to Approve')
         if config['require_row_approval'] and not lead.get('approved'):
-            raise ValueError('Review the message in Notion and set STATUS to Approve')
+            issues.append('Review the message in Notion and set STATUS to Approve')
         if not all(lead.get(k) for k in ('eligibility_reviewed', 'contact_purpose_reviewed', 'outreach_allowed')) or not lead.get('contact_review_notes'):
-            raise ValueError('Review eligibility, relevant contact purpose and outreach permission; record source notes')
+            issues.append('Review eligibility, relevant contact purpose and outreach permission; record source notes')
         if lead['kind'] == 'Posted Job':
             if lead.get('application_route', '').strip().lower() != 'email':
-                raise ValueError('Portal-only or unknown application route; no email application')
+                issues.append('Portal-only or unknown application route; no email application')
             if config['require_confirmed_job_eligibility'] and lead.get('remote_eligibility') != 'Confirmed':
-                raise ValueError('Worldwide/Thailand applicant eligibility unconfirmed')
+                issues.append('Worldwide/Thailand applicant eligibility unconfirmed')
             if lead.get('rate_per_email') is None or lead.get('currency') != 'USD':
-                raise ValueError('Job compensation requires review; hourly rates cannot be assumed per-email')
+                issues.append('Job compensation requires review; hourly rates cannot be assumed per-email')
         elif not config['allow_unknown_cold_budget'] and lead.get('rate_per_email') is None:
-            raise ValueError('Cold prospect budget is unknown')
+            issues.append('Cold prospect budget is unknown')
         if lead['kind'] == 'Cold Outreach' and not config.get('business_postal_address', '').strip():
-            raise ValueError('Configure an appropriate business postal address for cold-outreach identity/footer')
+            issues.append('Configure an appropriate business postal address for cold-outreach identity/footer')
+    try: check_draft(lead, profile, config)
+    except (ValueError, KeyError, TypeError) as exc: issues.append(str(exc))
+    return list(dict.fromkeys(issues))
+
+
+def gate(store, lead, config, profile, prefs, exclusions, follow=False):
+    issues = gate_errors(store, lead, config, profile, prefs, exclusions, follow)
+    if issues:
+        raise ValueError('; '.join(issues))
     return check_draft(lead, profile, config)
 
 

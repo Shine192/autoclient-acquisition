@@ -186,7 +186,7 @@ def run(q,s,g,notion,max_seconds=225,report=lambda stage:None):
 
 def main():
     parser=argparse.ArgumentParser(description='GitHub delivery. No implicit initialization or reset.')
-    parser.add_argument('command',nargs='?',default='status',choices=['status','auth-check','dry-run','self-test','verify-test','activate','enable-approvals','pause','resume','campaign','close','run','reconcile'])
+    parser.add_argument('command',nargs='?',default='status',choices=['status','auth-check','review','dry-run','self-test','verify-test','activate','enable-approvals','pause','resume','campaign','close','run','reconcile'])
     parser.add_argument('--id',default=os.getenv('SHINE_ITEM_ID',''))
     parser.add_argument('--policy-hash',default=os.getenv('SHINE_POLICY_HASH',''))
     parser.add_argument('--target',type=int,default=int(os.getenv('SHINE_CAMPAIGN_TARGET','20') or '20'))
@@ -211,6 +211,11 @@ def main():
         os.environ['NOTION_TOKEN']=os.environ['NOTION_API_KEY']
         notion=Notion()
         notion.connection={'source_id':s['preferences']['notion_leads_source_id']}
+        if args.command=='review':
+            result=refresh(q,notion,s,q.control().get('active_campaign'))
+            from .health import snapshot,emit
+            emit(snapshot(q,s))
+            print(json.dumps({'review':result, 'emails_sent':0}));return
         if args.command=='dry-run':
             pages=list(notion.query(s['preferences']['notion_leads_source_id']))
             print(json.dumps({'notion_rows':len(pages),'approved':sum((p['properties'].get('STATUS',{}).get('status') or {}).get('name')=='Approve' for p in pages),'mutations':False,**policy_summary(s)}));return
