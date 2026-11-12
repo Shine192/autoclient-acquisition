@@ -1,6 +1,7 @@
 import unittest
+import copy
 from unittest.mock import Mock, patch
-from acquisition_agent.approval_checks import blockers, message, pricing_issue
+from acquisition_agent.approval_checks import blockers, message, pricing_issue, offered_design_range
 
 
 class ApprovalChecksTests(unittest.TestCase):
@@ -33,3 +34,31 @@ class ApprovalChecksTests(unittest.TestCase):
         lead={'draft':{'body':'My Figma design rate is $30-$35 per email.'}}
         self.assertTrue(pricing_issue(lead,{'design_rate_usd':[20,30]}))
         self.assertIn('$30-$35',lead['draft']['body'])
+
+    def prism(self):
+        return {'id':'fc403920dc3d81fa','notion_page_id':'3ff35189-9d8d-81ac-aa4a-fcb9067b3d56',
+                'website':'https://www.prism-me.com/', 'email':'sales@prism-me.com','kind':'Cold Outreach',
+                'draft':{'body':'My Figma design rate is $30-$35 per email. Klaviyo building quoted separately.'}}
+
+    def test_explicit_prism_offer_does_not_change_default_or_approve_a_row(self):
+        lead=self.prism();before=copy.deepcopy(lead);prefs={'design_rate_usd':[20,30]}
+        self.assertEqual(pricing_issue(lead,prefs),'')
+        self.assertEqual(offered_design_range(lead,prefs),[30,35])
+        self.assertEqual(offered_design_range({},prefs),[20,30])
+        self.assertEqual(lead,before);self.assertEqual(prefs,{'design_rate_usd':[20,30]})
+
+    def test_prism_authorization_is_bound_to_opportunity_page_company_and_recipient(self):
+        for key,value in [('id','other'),('notion_page_id','another-page'),('website','https://other.example'),
+                          ('email','other@prism-me.com'),('kind','Posted Job')]:
+            with self.subTest(key=key):
+                lead=self.prism();lead[key]=value
+                self.assertTrue(pricing_issue(lead,{'design_rate_usd':[20,30]}))
+
+    def test_imported_price_confirmation_cannot_authorize_an_exception(self):
+        lead={'draft':{'body':'USD 30–35 per email'},'pricing_approval':{'confirmed':True,'design_rate_usd':[30,35]}}
+        self.assertTrue(pricing_issue(lead,{'design_rate_usd':[20,30]}))
+
+    def test_changed_prism_rate_or_a_second_conflicting_quote_stays_blocked(self):
+        for body in ['USD 35–40 per email', 'USD 30–35 per email. Or USD 40–50 per email.']:
+            lead=self.prism();lead['draft']['body']=body
+            self.assertTrue(pricing_issue(lead,{'design_rate_usd':[20,30]}))
