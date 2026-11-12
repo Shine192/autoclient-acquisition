@@ -14,7 +14,7 @@ on:
         description: 'Delivery controls; enable-approvals switches to flexible Notion approval'
         type: choice
         default: status
-        options: [status, auth-check, dry-run, self-test, verify-test, activate, enable-approvals, pause, resume, campaign, close, run, reconcile]
+        options: [status, auth-check, review, dry-run, self-test, verify-test, activate, enable-approvals, pause, resume, campaign, close, run, reconcile]
       item_id:
         description: 'Test ID or uncertain outbox ID, when needed'
         type: string

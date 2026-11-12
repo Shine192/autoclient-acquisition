@@ -106,7 +106,10 @@ class Worker:
             'draft_hash': digest(draft), 'subject': draft['subject'], 'body': body,
             'message_id': '<shine-github-' + key + '@' + self.s['sending']['sender'].split('@')[1] + '>'})
         if result['state']=='queued':
-            self.notion.request('pages/'+lead['notion_page_id'],'PATCH',{'properties':{'Scheduled Time':{'date':{'start':datetime.fromtimestamp(result['due_at'],timezone.utc).isoformat()}},'Delivery State':{'rich_text':rich('Queued for company-local weekday 08:00–11:00')}}})
+            self.notion.request('pages/'+lead['notion_page_id'],'PATCH',{'properties':{
+                'Scheduled Time':{'date':{'start':datetime.fromtimestamp(result['due_at'],timezone.utc).isoformat()}},
+                'Delivery State':{'rich_text':rich('Approved and queued; waiting for company-local weekday 08:00–11:00, sender availability and final checks')},
+                'Error':{'rich_text':[]},'Research Check':{'select':{'name':'Ready for review'}}}})
         return result
 
     def poll(self):

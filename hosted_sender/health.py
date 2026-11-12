@@ -91,6 +91,9 @@ def snapshot(queue, settings, now=None, timer=None):
     day = datetime.fromtimestamp(now,timezone.utc).astimezone(ZoneInfo(settings['sending']['timezone'])).date()
     accepted_today = sum(v['state']=='sent' and v.get('attempted_at') is not None and
         datetime.fromtimestamp(v['attempted_at'],timezone.utc).astimezone(ZoneInfo(settings['sending']['timezone'])).date()==day for v in items)
+    review = queue.db.get('notion_approval_health') or {}
+    fresh_review = bool(review.get('settings_hash')==settings_hash(settings) and
+                        0 <= now-review.get('checked_at',0) < 20*60)
     report = {'checked_at':iso(now),'paused':bool(control.get('paused')),
         'delivery_model':control.get('delivery_model','campaign'),
         'delivery_enabled':os.getenv('SHINE_DELIVERY_ENABLED')=='true',
@@ -99,6 +102,12 @@ def snapshot(queue, settings, now=None, timer=None):
             and (control.get('delivery_model')!='notion-approval' or control.get('approval_policy_hash')==settings_hash(settings))),
         'outstanding_attempt':bool(control.get('active_attempt')),
         'queued':counts['queued'],'held':counts['blocked'],
+        # Approved rows rejected before enqueueing are not outbox holds.
+        # Unknown/stale counts must never silently appear as zero blockers.
+        'notion_approval_review':{'state':'current' if fresh_review else ('stale' if review else 'unavailable'),
+            'checked_at':iso(review.get('checked_at')),
+            'approved':review.get('approved') if fresh_review else None,
+            'blocked':review.get('blocked') if fresh_review else None},
         'confirmed_sent':counts['sent'],'confirmed_sent_today':accepted_today,
         'uncertain':counts['sending']+counts['uncertain'],
         'notion_sync_pending':sum(bool(v.get('notion_sync_pending')) for v in items),
@@ -117,6 +126,7 @@ def snapshot(queue, settings, now=None, timer=None):
     elif not report['configuration_ready']:overall='blocked_configuration'
     elif report['notion_sync_pending'] or report['notion_sync_unverified']:overall='attention_notion_sync'
     elif report['delivery_model']=='notion-approval' and not timer_verified:overall='attention_timer_unverified'
+    elif report['delivery_model']=='notion-approval' and fresh_review and review.get('blocked'):overall='attention_approved_but_blocked'
     elif report['delivery_model']=='notion-approval':overall='operational' if report['queued'] else 'idle_awaiting_approvals'
     elif not plan:overall='idle_no_campaign'
     elif plan['sent_attempts']>=plan['maximum_sends']:overall='idle_campaign_complete'
@@ -142,6 +152,8 @@ def emit(report):
             ('Paused',report.get('paused','Unknown')),('Delivery enabled',report.get('delivery_enabled','Unknown')),
             ('Approved setup ready',report.get('configuration_ready','Unknown')),
             ('Queued',report.get('queued','Unknown')),('Held',report.get('held','Unknown')),
+            ('Notion approval review',report.get('notion_approval_review',{}).get('state','unavailable')),
+            ('Approved rows blocked before queueing',report.get('notion_approval_review',{}).get('blocked')),
             ('Gmail accepted today',report.get('confirmed_sent_today','Unknown')),
             ('Notion sync pending',report.get('notion_sync_pending','Unknown')),
             ('Notion receipt checks unverified',report.get('notion_sync_unverified','Unknown')),

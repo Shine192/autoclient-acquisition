@@ -109,6 +109,26 @@ class ApprovalDeliveryTests(unittest.TestCase):
         self.assertEqual(self.f.w.tick(t)['state'],'sent')
         self.assertEqual(self.q.control()['days']['2026-10-28'],1)
 
+    def test_approved_blocked_row_shows_multiple_reasons_without_queueing(self):
+        self.enable();page=self.f.page()
+        notes=json.loads(page['properties']['Research Notes']['rich_text'][0]['text']['content'])
+        notes.update(email_candidates=[],industry='')
+        page['properties']['Research Notes']['rich_text']=rich(json.dumps(notes))
+        page['properties']['Contact Source URL']={'url':None}
+        page['properties']['EMAIL']={'email':'support@paper.example'}
+        page['properties']['email body']['rich_text']=rich(self.f.lead['draft']['body']+' My Figma design rate is $30-$35 per email.')
+        self.f.notion.query.return_value=[page]
+        self.f.notion.request.side_effect=lambda path,method='POST',data=None:copy.deepcopy(page) if method=='GET' else page['properties'].update(copy.deepcopy(data['properties'])) or {}
+        result=refresh(self.q,self.f.notion,self.s)
+        text=''.join(x['text']['content'] for x in page['properties']['Delivery State']['rich_text'])
+        self.assertEqual(result['held'],1);self.assertEqual(result['queued'],0)
+        self.assertTrue(text.startswith('Approved but blocked:'))
+        self.assertIn('Recipient does not match published evidence',text)
+        self.assertIn('price differs',text)
+        self.assertEqual(page['properties']['STATUS']['status']['name'],'Approve')
+        self.assertEqual(self.q.db.get('notion_approval_health')['blocked'],1)
+        self.f.gmail.send.assert_not_called()
+
     def test_withdrawn_approval_or_dnc_stops_dispatch(self):
         self.enable();item=self.f.w.enqueue(self.f.lead['id'])
         self.q.db.records['outbox_'+item['id']]['due_at']=self.f.t

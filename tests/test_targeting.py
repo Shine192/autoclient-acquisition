@@ -77,6 +77,17 @@ class TargetSessionTests(unittest.TestCase):
         self.assertEqual(lead['score'],0);self.assertTrue(lead['target_reasons'])
         self.assertIn('Observed company location',str(lead['target_reasons']))
 
+    def test_optional_agency_industry_cannot_earn_points_without_evidence(self):
+        from acquisition_agent.targeting import target_check
+        lead=copy.deepcopy(self.raw)
+        lead.update(target_session={'spec':dict(self.spec,company_type='Agency',industries=[])},
+                    type='Agency',source_documents=[{'url':lead['url'],'text':self.text}])
+        lead['target_evidence'].pop('industry')
+        self.assertIn('Missing exact industry evidence',target_check(lead))
+        self.assertEqual(assess(lead,self.prefs,self.exclusions)['score'],0)
+        lead['target_evidence']['industry']={'url':lead['url'],'quote':'chocolate gifts online'}
+        self.assertEqual(target_check(lead),[])
+
     def test_sourced_eatery_wording_matches_restaurant_industry_without_relaxing_evidence(self):
         from acquisition_agent.targeting import target_check
         lead=copy.deepcopy(self.raw)

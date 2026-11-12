@@ -1,0 +1,25 @@
+name: External delivery trigger
+run-name: External delivery request · ${{ inputs.operation }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: 'Start with non-sending review; use run only after scheduler setup is approved'
+        type: choice
+        default: review
+        options: [review, run]
+
+permissions:
+  contents: read
+
+jobs:
+  delivery:
+    if: vars.SHINE_EXTERNAL_TIMER_ENABLED == 'true' && vars.SHINE_DELIVERY_ENABLED == 'true'
+    permissions:
+      contents: write
+      actions: read
+    uses: ./.github/workflows/outreach.yml
+    with:
+      operation: ${{ inputs.operation }}
+    secrets: inherit

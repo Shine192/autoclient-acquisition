@@ -1,5 +1,5 @@
 """Read Notion research as data; only the actual STATUS property can approve."""
-import json,re
+import json,re,tempfile,time
 from acquisition_agent import notion_compat,delivery
 from acquisition_agent.providers import text_value,rich
 from .queue import digest
@@ -86,7 +86,11 @@ def refresh(queue,notion,settings,campaign_id=None):
             if approval_mode or not existing:
                 invalid.add(key)
                 output['held']+=1
-                notion.request('pages/'+page['id'],'PATCH',{'properties':{'Delivery State':{'rich_text':rich('Held: complete structured research is missing. Repair and sync from the Mac dashboard.')}}})
+                reason='Complete structured research is missing. Repair and sync from the Mac dashboard.'
+                notion.request('pages/'+page['id'],'PATCH',{'properties':{
+                    'Delivery State':{'rich_text':rich('Approved but blocked:\n- '+reason)},
+                    'Error':{'rich_text':rich(reason)},
+                    'Research Check':{'select':{'name':'Needs information'}}}})
                 continue
             lead=dict(existing['data']);lead['notion_page_id']=page['id']
         # A complete local seed is kept if Notion's stored excerpts are shorter.
@@ -102,9 +106,34 @@ def refresh(queue,notion,settings,campaign_id=None):
             if (page['properties'].get('STATUS',{}).get('status') or {}).get('name')!='Approve':continue
             if not queue.db.get('lead_'+key):continue
             try:
+                # Diagnose without reserving a send or overriding approval.
+                from acquisition_agent.approval_checks import blockers, message
+                with tempfile.TemporaryDirectory() as folder:
+                    store = worker.local(folder)
+                    try:
+                        lead = worker.reviewed_lead(store, queue.db.get('lead_'+key)['data'])
+                        issues = blockers(store, lead, settings['sending'], settings['profile'], settings['preferences'], settings['exclusions'])
+                    finally:
+                        store.db.close()
+                if issues:
+                    output['held'] += 1
+                    notion.request('pages/'+page['id'],'PATCH',{'properties':{
+                        'Delivery State':{'rich_text':rich(message(issues))},
+                        'Error':{'rich_text':rich('\n'.join(issues))},
+                        'Research Check':{'select':{'name':'Needs information'}}}})
+                    continue
                 item=worker.enqueue(key,campaign_id)
                 if item['state']=='queued':output['queued']+=1
             except (ValueError,KeyError,TypeError) as exc:
                 output['held']+=1
-                notion.request('pages/'+page['id'],'PATCH',{'properties':{'Delivery State':{'rich_text':rich('Held: '+str(exc)[:400])}}})
+                notion.request('pages/'+page['id'],'PATCH',{'properties':{
+                    'Delivery State':{'rich_text':rich('Approved but blocked:\n- '+str(exc))},
+                    'Error':{'rich_text':rich(str(exc))}}})
+    from .worker import settings_hash
+    def remember_review(tx):
+        tx.put('notion_approval_health',{'kind':'approval_health','checked_at':time.time(),
+            'settings_hash':settings_hash(settings),
+            'approved':sum((p['properties'].get('STATUS',{}).get('status') or {}).get('name')=='Approve' for p in pages),
+            'blocked':output['held'],'queued':output['queued']})
+    queue.db.transaction(remember_review)
     return output

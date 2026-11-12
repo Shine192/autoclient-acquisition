@@ -109,9 +109,8 @@ def evaluate(store, lead, config, profile, prefs, exclusions):
         candidate['contact_review_notes']=(candidate['contact_review_notes']+'\nSingle review: '+ATTESTATION).strip()
     if not candidate.get('draft'):issues.append('Save a valid email draft first.')
     if candidate.get('email','') not in candidate.get('email_candidates',[]) or not candidate.get('contact_source_url'):issues.append('Add an official source containing the selected shared business email address.')
-    try:delivery.gate(store,candidate,config,profile,prefs,exclusions)
-    except (ValueError,TypeError) as exc:
-        if 'check Targeting Reviewed' not in str(exc):issues.append(str(exc))
+    try:issues.extend(delivery.gate_errors(store,candidate,config,profile,prefs,exclusions))
+    except (ValueError,TypeError) as exc:issues.append(str(exc))
     except KeyError:issues.append('Complete the required research and draft fields before approval.')
     due=None
     try:due=next_window(config,candidate)
