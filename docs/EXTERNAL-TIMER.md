@@ -13,8 +13,10 @@ improvement, not an exact-time delivery guarantee. Keep the native timer as a
 backup. The sender's shared concurrency lock and atomic duplicate protection
 remain authoritative.
 
-This option is **inactive**. `SHINE_EXTERNAL_TIMER_ENABLED` is not enabled by
-this change. An account and a new repository-scoped credential are required;
+This option starts **inactive**. `SHINE_EXTERNAL_TIMER_ENABLED` permits the
+non-sending review receiver. Production `operation=run` additionally requires
+`SHINE_EXTERNAL_SEND_ENABLED=true`, a separate explicit activation. Missing or
+false switches fail closed. An account and a new repository-scoped credential are required;
 never copy a general CLI login token or Gmail/Notion/ledger credentials into a
 scheduler. Do not paste credentials into chat, repository files or logs.
 
@@ -34,15 +36,17 @@ scheduler. Do not paste credentials into chat, repository files or logs.
      `{"ref":"main","inputs":{"operation":"review"}}`
    - Interval: every five minutes; enable failure notifications in the scheduler.
 4. After explicitly approving this setup, set the repository variable
-   `SHINE_EXTERNAL_TIMER_ENABLED=true`. Keep the HTTP job's operation as `review`
+   `SHINE_EXTERNAL_TIMER_ENABLED=true`. Keep `SHINE_EXTERNAL_SEND_ENABLED` absent
+   or false, and keep the cron job disabled. Keep its operation as `review`
    for the first execution. Review changes queue/hold diagnostics but sends no
    email and does not approve any Notion row. Native delivery may independently
    process previously approved, eligible rows.
 5. Check BOTH the provider's execution history and GitHub's External delivery
    trigger run. A 204 response only means GitHub accepted a dispatch request.
-6. Once the result is verified and production scheduling is approved, change
-   the HTTP body to `{"ref":"main","inputs":{"operation":"run"}}` and enable
-   the repeating job. Do not use this as a way to bypass row approval or holds.
+6. Once the result is verified and production scheduling is explicitly approved,
+   set `SHINE_EXTERNAL_SEND_ENABLED=true`, change the HTTP body to
+   `{"ref":"main","inputs":{"operation":"run"}}` and enable the repeating
+   job. Do not use this as a way to bypass row approval or holds.
 
 ## Acceptance checks
 
@@ -62,8 +66,9 @@ valid recipient/offer, weekday company-local 08:00–11:00, at most 50/day,
 three-minute spacing, and no receipt, reply, suppression or unresolved attempt.
 A missed window rolls to the next eligible weekday; it never extends to 11:01.
 
-To stop this option, disable its scheduler job and set
-`SHINE_EXTERNAL_TIMER_ENABLED=false`. Do not delete sending history. To stop all
+To stop external sending while preserving non-sending review access, set
+`SHINE_EXTERNAL_SEND_ENABLED=false`. To stop all external checks, disable its
+scheduler job and set `SHINE_EXTERNAL_TIMER_ENABLED=false`. Do not delete sending history. To stop all
 delivery, use the existing delivery switch/pause, not just this external switch.
 
 References: [GitHub scheduling limitations](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule),

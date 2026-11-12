@@ -25,6 +25,22 @@ class SetupTests(unittest.TestCase):
   sender=yaml.load((ROOT/'.github/workflows/outreach.yml').read_text(),Loader=yaml.BaseLoader)
   self.assertEqual(sender['concurrency']['group'],'shine-production-delivery')
   self.assertIn('review',sender['on']['workflow_dispatch']['inputs']['operation']['options'])
+ def test_external_receiver_needs_a_separate_explicit_production_switch(self):
+  import yaml
+  data=yaml.load((ROOT/'.github/workflows/external-delivery.yml').read_text(),Loader=yaml.BaseLoader)
+  expression=data['jobs']['delivery']['if']
+  # Exercise the actual restricted condition, not a duplicated implementation.
+  expression=expression.replace('&&',' and ').replace('||',' or ')
+  for timer in ('','false','true'):
+   for delivery in ('','false','true'):
+    for sending in ('','false','true'):
+     for operation in ('review','run','other'):
+      from types import SimpleNamespace
+      enabled=eval(expression,{'__builtins__':{}},{'vars':SimpleNamespace(
+       SHINE_EXTERNAL_TIMER_ENABLED=timer,SHINE_DELIVERY_ENABLED=delivery,
+       SHINE_EXTERNAL_SEND_ENABLED=sending),'inputs':SimpleNamespace(operation=operation)})
+      self.assertEqual(enabled,timer=='true' and delivery=='true' and
+       (operation=='review' or (operation=='run' and sending=='true')))
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name)
   shutil.copytree(ROOT/'config',self.root/'config');p=json.loads((self.root/'config/preferences.json').read_text());p['notion_leads_source_id']=SOURCE;(self.root/'config/preferences.json').write_text(json.dumps(p))
