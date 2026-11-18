@@ -20,6 +20,45 @@ ROOT=Path(__file__).resolve().parent.parent
 
 
 class HealthTests(unittest.TestCase):
+    def external_runs(self):
+        return [{'created_at':health.iso(self.now-gap), 'display_title':'External delivery request · run',
+                 'head_branch':'main', 'event':'workflow_dispatch', 'status':'completed', 'conclusion':'success'}
+                for gap in (60,360,660)]
+
+    def test_external_cadence_is_observed_without_claiming_native_or_provider_success(self):
+        self.db.api=Mock(side_effect=[{'state':'active'},{'workflow_runs':self.external_runs()}])
+        with patch.dict(os.environ,{'SHINE_EXTERNAL_TIMER_ENABLED':'true','SHINE_EXTERNAL_SEND_ENABLED':'true'}):
+            status=health.external_trigger_status(self.q,self.now)
+        self.assertEqual(status['state'],'recent_checks_observed')
+        self.assertEqual(status['recent_intervals_seconds'],[300,300])
+        self.assertFalse(status['automation_verified'])
+        self.assertIsNone(self.db.get(health.KEY))
+
+    def test_one_manual_external_success_does_not_prove_repeating_checks(self):
+        self.db.api=Mock(side_effect=[{'state':'active'},{'workflow_runs':self.external_runs()[:1]}])
+        with patch.dict(os.environ,{'SHINE_EXTERNAL_TIMER_ENABLED':'true','SHINE_EXTERNAL_SEND_ENABLED':'true'}):
+            status=health.external_trigger_status(self.q,self.now)
+        self.assertEqual(status['state'],'recent_success_cadence_unverified')
+        self.assertFalse(status['automation_verified'])
+
+    def test_external_review_requests_and_failed_or_stale_runs_are_not_healthy(self):
+        for change,expected in [({'display_title':'External delivery request · review'},'never_observed'),
+                                ({'conclusion':'failure'},'failed'),
+                                ({'created_at':health.iso(self.now-1201)},'stale')]:
+            runs=self.external_runs()
+            for run in runs:run.update(change)
+            self.db.api=Mock(side_effect=[{'state':'active'},{'workflow_runs':runs}])
+            with patch.dict(os.environ,{'SHINE_EXTERNAL_TIMER_ENABLED':'true','SHINE_EXTERNAL_SEND_ENABLED':'true'}):
+                self.assertEqual(health.external_trigger_status(self.q,self.now)['state'],expected)
+
+    def test_external_flags_and_api_errors_fail_closed(self):
+        self.db.api=Mock(side_effect=ValueError('PRIVATE_TOKEN'))
+        with patch.dict(os.environ,{'SHINE_EXTERNAL_TIMER_ENABLED':'false','SHINE_EXTERNAL_SEND_ENABLED':'true'}):
+            self.assertEqual(health.external_trigger_status(self.q,self.now)['state'],'disabled')
+        self.db.api.assert_not_called()
+        with patch.dict(os.environ,{'SHINE_EXTERNAL_TIMER_ENABLED':'true','SHINE_EXTERNAL_SEND_ENABLED':'true'}):
+            self.assertEqual(health.external_trigger_status(self.q,self.now)['state'],'unavailable')
+
     def setUp(self):
         self.s={k:json.loads((ROOT/'config'/(k+'.json')).read_text()) for k in ('profile','preferences','sending','exclusions')}
         self.s['sending'].update(mode='automatic',send_hours=[8,11],send_weekdays=[0,1,2,3,4],minimum_interval_seconds=180,timezone='Asia/Bangkok',schedule_basis='company',follow_up_days=[])

@@ -66,6 +66,8 @@ jobs:
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
           EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
           SHINE_DELIVERY_ENABLED: ${{ vars.SHINE_DELIVERY_ENABLED }}
+          SHINE_EXTERNAL_TIMER_ENABLED: ${{ vars.SHINE_EXTERNAL_TIMER_ENABLED }}
+          SHINE_EXTERNAL_SEND_ENABLED: ${{ vars.SHINE_EXTERNAL_SEND_ENABLED }}
           SHINE_OPERATION: ${{ github.event_name == 'schedule' && 'run' || inputs.operation }}
           SHINE_ITEM_ID: ${{ inputs.item_id }}
           SHINE_POLICY_HASH: ${{ inputs.policy_hash }}

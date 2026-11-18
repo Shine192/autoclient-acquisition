@@ -1,4 +1,20 @@
-# Delivery timing: prepared, not activated
+# Delivery timing: native timer and external receiver
+
+## Observed on 18 November 2026
+
+The delivery, external receiver and external send switches are enabled. Eight
+successful external production checks were observed at approximately five-minute
+intervals from 04:20 through 04:55 UTC. The latest health report confirmed
+Notion approval mode, no campaign requirement, zero unresolved attempts and
+zero pending receipt updates. This is a dated observation, not a live guarantee.
+The provider console was signed out, so its execution history was not verified.
+
+Health reports now show external receiver cadence separately from the native
+timer. Receiver runs remain workflow_dispatch events. Three consecutive successful
+main-branch run requests at intervals of two to ten minutes show recent checks;
+a single manual success, review request, disabled switch, failure or stale run
+does not establish that cadence. Provider history is still required to prove
+automatic triggering. Native scheduled-success timestamps are unchanged.
 
 The GitHub-native five-minute schedule is best-effort. Observed scheduled
 runs on 11–12 November 2026 were hours apart. A manual run, cron-expression
@@ -55,8 +71,8 @@ scheduler. Do not paste credentials into chat, repository files or logs.
 - Verify elapsed intervals, including during an actual company-local window.
 - Require a saved individual receipt before calling any email sent.
 - Do not treat stale/missing run information or a successful dispatch as healthy.
-- The existing health report checks the **native** timer only. External
-  dispatches remain `workflow_dispatch` events and must not be relabelled as
+- The health report shows **native** timer evidence and external receiver checks
+  separately. External dispatches remain `workflow_dispatch` events and are not
   genuine native schedule events. Check provider history separately.
 - If requests succeed but jobs queue for too long, an independent worker
   platform is needed; increasing dispatch frequency will not solve runner delay.

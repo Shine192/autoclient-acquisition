@@ -30,10 +30,13 @@ def sourced_candidate(lead):
     if value.get('kind')=='Cold Outreach':
         allowed=allowed-{'help','support','booking','press','careers','jobs','hr','recruitment','talent'}
     addresses={}
+    from .approval_checks import published_work_enquiry
     for doc in documents:
+        work_enquiry = published_work_enquiry(value, doc)
         for address in re.findall(EMAIL_PATTERN,doc['text'],re.I):
             address=address.lower()
-            if address.split('@')[0] in allowed:addresses.setdefault(address,doc['url'])
+            if address.split('@')[0] in allowed or (work_enquiry and address == value.get('email', '').lower().strip()):
+                addresses.setdefault(address,doc['url'])
     address=value.get('email','').lower().strip()
     if not address and len(addresses)==1:
         address=next(iter(addresses));value['email']=address
