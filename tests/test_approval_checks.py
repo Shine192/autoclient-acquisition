@@ -1,10 +1,64 @@
 import unittest
 import copy
 from unittest.mock import Mock, patch
-from acquisition_agent.approval_checks import blockers, message, pricing_issue, offered_design_range
+from acquisition_agent.approval_checks import blockers, message, pricing_issue, offered_design_range, published_work_enquiry
+from acquisition_agent.review import sourced_candidate
 
 
 class ApprovalChecksTests(unittest.TestCase):
+    def ir_solutions(self):
+        return {'id':'1d9e845f82760645', 'notion_page_id':'3ff35189-9d8d-81c0-85bb-ce1b726db471',
+                'url':'https://irsolutions.tech/hire-klaviyo-expert', 'website':'https://irsolutions.tech/',
+                'email':'hr@irsolutions.tech', 'kind':'Cold Outreach', 'remote_eligibility':'Unknown',
+                'application_route':'Unsolicited freelance work enquiry',
+                'draft':{'subject':'Freelance email design and Klaviyo work enquiry',
+                         'body':"I'm writing to ask whether you consider remote freelancers. My Figma design rate is USD 25–30 per email."},
+                'source_documents':[{'url':'https://irsolutions.tech/contact-us',
+                    'text':'For Jobs\n\n[hr@irsolutions.tech](mailto:hr@irsolutions.tech)'}]}
+
+    def test_ir_work_enquiry_keeps_unknown_terms_and_needs_final_approval(self):
+        lead=self.ir_solutions();before=copy.deepcopy(lead)
+        candidate=sourced_candidate(lead)
+        self.assertEqual(candidate['contact_source_url'],'https://irsolutions.tech/contact-us')
+        self.assertIn('hr@irsolutions.tech',candidate['email_candidates'])
+        self.assertEqual(candidate['kind'],'Cold Outreach')
+        self.assertEqual(candidate['remote_eligibility'],'Unknown')
+        self.assertFalse(candidate.get('approved'))
+        self.assertEqual(pricing_issue(candidate,{'design_rate_usd':[20,30]}),'')
+        self.assertEqual(lead,before)
+
+    def test_ir_route_and_price_authorization_cannot_apply_to_another_record(self):
+        for key,value in [('id','other'),('notion_page_id','another-page'),('website','https://other.example'),
+                          ('email','hr@other.example'),('kind','Posted Job')]:
+            with self.subTest(key=key):
+                lead=self.ir_solutions();lead[key]=value
+                self.assertFalse(published_work_enquiry(lead,lead['source_documents'][0]))
+                if value != 'Posted Job':
+                    self.assertFalse(sourced_candidate(lead).get('contact_source_url'))
+                self.assertTrue(pricing_issue(lead,{'design_rate_usd':[20,30]}))
+
+    def test_hr_is_not_a_general_cold_pitch_route_or_an_unlabelled_contact(self):
+        for route,text,url in [('', 'For Jobs\nhr@irsolutions.tech', 'https://irsolutions.tech/contact-us'),
+                               ('Business introduction', 'For Jobs\nhr@irsolutions.tech', 'https://irsolutions.tech/contact-us'),
+                               ('Unsolicited freelance work enquiry', 'Sales\nhr@irsolutions.tech', 'https://irsolutions.tech/contact-us'),
+                               ('Unsolicited freelance work enquiry', 'For Jobs\nhr@irsolutions.tech', 'https://other.example/contact-us')]:
+            lead=self.ir_solutions();lead['application_route']=route
+            lead['source_documents']=[{'url':url,'text':text}]
+            lead.update(contact_source_url='old',email_candidates=['hr@irsolutions.tech'])
+            self.assertFalse(sourced_candidate(lead)['contact_source_url'])
+            self.assertNotIn('hr@irsolutions.tech',sourced_candidate(lead)['email_candidates'])
+
+    def test_ir_old_and_unselected_higher_quotes_need_review(self):
+        for body in ['USD 20–30 per email', 'USD 30–35 per email']:
+            lead=self.ir_solutions();lead['draft']['body']=body
+            self.assertTrue(pricing_issue(lead,{'design_rate_usd':[20,30]}))
+
+    def test_business_pitch_cannot_reuse_hr_permission_by_keeping_the_route_label(self):
+        lead=self.ir_solutions();lead['draft']['body']='I sell marketing services to businesses.'
+        self.assertFalse(sourced_candidate(lead)['contact_source_url'])
+        lead=self.ir_solutions();lead['draft']['subject']='Applying for your advertised vacancy'
+        self.assertFalse(sourced_candidate(lead)['contact_source_url'])
+
     def test_collects_independent_failures(self):
         lead={'email':'support@example.com','url':'https://example.com','kind':'Posted Job','country':'UAE',
               'draft':{'body':'My Figma design rate is $30-$35 per email.'}}

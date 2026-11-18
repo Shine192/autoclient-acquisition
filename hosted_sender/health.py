@@ -82,6 +82,41 @@ def timer_status(queue, now):
         return {'state':'unavailable','last_event_at':None,'last_success_at':None}
 
 
+def external_trigger_status(queue, now):
+    """Observe receiver cadence without claiming access to provider history."""
+    result = {'state':'disabled', 'last_event_at':None, 'last_success_at':None,
+              'recent_intervals_seconds':[], 'automation_verified':False}
+    if (os.getenv('SHINE_EXTERNAL_TIMER_ENABLED') != 'true' or
+            os.getenv('SHINE_EXTERNAL_SEND_ENABLED') != 'true'):
+        return result
+    api = getattr(queue.db, 'api', None)
+    if api is None:return {**result, 'state':'unavailable'}
+    try:
+        workflow = api('actions/workflows/external-delivery.yml')
+        if workflow.get('state') != 'active':return result
+        runs = api('actions/workflows/external-delivery.yml/runs?event=workflow_dispatch&per_page=5').get('workflow_runs', [])
+        # Review/status-only requests are not production receiver evidence.
+        runs = [r for r in runs if r.get('display_title') == 'External delivery request · run'
+                and r.get('head_branch') == 'main' and r.get('event') == 'workflow_dispatch']
+        if not runs:return {**result, 'state':'never_observed'}
+        result['last_event_at'] = runs[0]['created_at']
+        successes = [r for r in runs if r.get('status') == 'completed' and r.get('conclusion') == 'success']
+        if successes:result['last_success_at'] = successes[0]['created_at']
+        stamps = [datetime.fromisoformat(r['created_at'].replace('Z', '+00:00')).timestamp() for r in runs]
+        result['recent_intervals_seconds'] = [round(a-b) for a,b in zip(stamps, stamps[1:])]
+        age = now-stamps[0]
+        if age < 0 or age > 20*60:state = 'stale'
+        elif runs[0].get('status') != 'completed':state = runs[0].get('status', 'unavailable')
+        elif runs[0].get('conclusion') != 'success':state = 'failed'
+        elif (len(runs) >= 3 and all(r.get('status') == 'completed' and r.get('conclusion') == 'success' for r in runs[:3])
+                and all(120 <= gap <= 600 for gap in result['recent_intervals_seconds'][:2])):
+            state = 'recent_checks_observed'
+        else:state = 'recent_success_cadence_unverified'
+        return {**result, 'state':state}
+    except Exception:
+        return {**result, 'state':'unavailable'}
+
+
 def snapshot(queue, settings, now=None, timer=None):
     from .worker import settings_hash
     now = time.time() if now is None else now
@@ -117,6 +152,7 @@ def snapshot(queue, settings, now=None, timer=None):
         'campaign':({'maximum_attempts':plan['maximum_sends'],'attempts_used':plan['sent_attempts'],
                      'remaining_attempts':max(0,plan['maximum_sends']-plan['sent_attempts'])} if plan else None),
         'timer':timer if timer is not None else timer_status(queue,now),
+        'external_trigger':external_trigger_status(queue, now),
         'last_worker_run':queue.db.get(KEY)}
     recent_success=report['timer'].get('last_success_at')
     timer_verified=bool(recent_success and now-datetime.fromisoformat(recent_success.replace('Z','+00:00')).timestamp()<20*60
@@ -149,6 +185,8 @@ def emit(report):
             ('Last successful worker check',run.get('last_success_at') or 'Not recorded'),
             ('Automatic timer',report.get('timer',{}).get('state','unavailable')),
             ('Last timer event',report.get('timer',{}).get('last_event_at') or 'None observed'),
+            ('External receiver checks',report.get('external_trigger',{}).get('state','unavailable')),
+            ('Last external receiver success',report.get('external_trigger',{}).get('last_success_at') or 'None observed'),
             ('Paused',report.get('paused','Unknown')),('Delivery enabled',report.get('delivery_enabled','Unknown')),
             ('Approved setup ready',report.get('configuration_ready','Unknown')),
             ('Queued',report.get('queued','Unknown')),('Held',report.get('held','Unknown')),
@@ -162,6 +200,7 @@ def emit(report):
     text = '# Outreach delivery health\n\n| Check | Result |\n|---|---|\n'
     text += ''.join('| '+k+' | '+str(v)+' |\n' for k,v in rows)
     text += '\nQueued times are conditional. A successful manual check does not verify the timer. '
+    text += 'External receiver checks are reported separately; provider execution history is required to verify automatic triggering. '
     text += 'A saved Gmail receipt prevents redispatch even if Notion syncing fails.\n'
     try:
         with Path(path).open('a') as handle:handle.write(text)
