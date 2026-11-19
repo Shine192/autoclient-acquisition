@@ -35,7 +35,7 @@ class TargetSessionTests(unittest.TestCase):
         self.assertIn('New York',self.session['queries'][0])
         self.assertIn('Appetizing',self.session['prompt'])
         self.assertIn('not permission to invent',self.session['prompt'])
-        self.assertEqual(get_session(self.store,self.session['id'])['spec'],self.spec)
+        self.assertEqual(get_session(self.store,self.session['id'])['spec'],validate_spec(self.spec,self.prefs))
         self.assertTrue(set(['education','fashion','beauty_skincare','saas_software']).issubset(INDUSTRIES))
 
     def test_dubai_and_expanded_industries_reach_research_prompt(self):

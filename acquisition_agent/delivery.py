@@ -35,7 +35,8 @@ SCHEMA = {
 
 def setup_schema(notion, source):
     current = notion.request('data_sources/' + source, 'GET')['properties']
-    missing = {k: v for k, v in SCHEMA.items() if k not in current}
+    from .client_workflow import schema
+    missing = {k: v for k, v in {**SCHEMA,**schema()}.items() if k not in current}
     if missing:
         notion.request('data_sources/' + source, 'PATCH', {'properties': missing})
     return {'added': list(missing), 'preserved': len(current)}
@@ -152,7 +153,9 @@ def require_approval(store, manifest):
 
 
 def recommend(lead, config):
-    return {'offer': 'paid_test', 'reason': 'A bounded paid design checks fit without promising unpaid work; advertised application instructions take priority.', 'scope': config['offers']['paid_test']['scope']}
+    from .commercial import PAID_TEST_SCOPE
+    scope=PAID_TEST_SCOPE if lead.get('design_quote') else config['offers']['paid_test']['scope']
+    return {'offer': 'paid_test', 'reason': 'A bounded paid design checks fit without promising unpaid work; advertised application instructions take priority.', 'scope': scope}
 
 
 def field(props, name):
@@ -187,6 +190,9 @@ def remote_lead(store, notion, lead, persist=True, page=None):
     lead['email'] = address.lower().strip()
     lead['application_route'] = field(p, 'Application Route')
     lead['selected_offer'] = field(p, 'Selected Offer') or 'paid_test'
+    # Only the explicit owner-editable property supplies the quote; never research notes.
+    lead['design_quote'] = (p.get('Design Quote', {}).get('select') or {}).get('name') or None
+    lead['portfolio_url'] = p.get('Portfolio Link',{}).get('url') or None
     lead['contact_review_notes'] = field(p, 'Contact Source Notes')
     lead['draft'] = {**lead.get('draft', {}), 'subject': field(p, 'email SUBJECT'), 'body': field(p, 'email body')}
     lead['scheduled_time'] = (p.get('Scheduled Time', {}).get('date') or {}).get('start')
@@ -206,6 +212,8 @@ def remote_lead(store, notion, lead, persist=True, page=None):
 
 
 def check_draft(lead, profile, config):
+    from .commercial import profile_for_lead
+    profile=profile_for_lead(lead,profile)
     draft = validate_draft(dict(lead['draft'], lead_id=lead['id']), lead, profile)
     if profile['portfolio_url'] not in draft['body']:
         raise ValueError('Draft must include your exact portfolio URL')
@@ -236,6 +244,10 @@ def gate_errors(store, lead, config, profile, prefs, exclusions, follow=False):
     price = pricing_issue(lead, prefs)
     if price:
         issues.append(price)
+    if config['mode'] != 'test':
+        from .commercial import agency_issue
+        focus_issue=agency_issue(lead)
+        if focus_issue:issues.append(focus_issue)
     if lead.get('target_session') and config['mode'] != 'test':
         from .targeting import target_check
         issues.extend(target_check(lead))

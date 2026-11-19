@@ -62,6 +62,8 @@ def ingest(store, items, config, profile, exclusions, provider, limit, keep_runn
             break
         try:
             lead = prepare_lead(item)
+            from .commercial import DEFAULT_QUOTE
+            lead.update(design_quote=DEFAULT_QUOTE,quote_schema_version=1,portfolio_url=profile.get("curated_portfolio_url") or profile["portfolio_url"])
             lead.update(assess(lead, config, exclusions))
             if not store.add(lead):
                 stats["duplicates"] += 1
@@ -418,7 +420,7 @@ def main():
             result = ingest(store, items, config, profile, exclusions, "manual", 20)
             for lead in store.leads():
                 if lead.get("is_demo") and lead.get("prompt_file"):
-                    sample = {"lead_id": lead["id"], "subject": "[DEMO] Freelance email design for Sample Studio", "body": "Hi Sample Studio team,\n\nYour sample brief mentions an ongoing freelance email designer for e-commerce clients. I create Figma email designs and build approved layouts in Klaviyo using reusable blocks. I could support campaign layouts and flows while following each client's brand guidelines.\n\nMy Figma design rate is USD 20–30 per email; Klaviyo building is quoted separately. You can see my work here: " + profile["portfolio_url"] + "\n\nWould it be useful to discuss a small paid design trial?\n\nShine\n\n[DEMO: fictional company; do not send]", "evidence": [{"url": lead["url"], "quote": "ongoing freelance email designer for e-commerce clients"}]}
+                    sample = {"lead_id": lead["id"], "subject": "[DEMO] Freelance email design for Sample Studio", "body": "Hi Sample Studio team,\n\nYour sample brief mentions an ongoing freelance email designer for e-commerce clients. I create Figma email designs and build approved layouts in Klaviyo using reusable blocks. I could support campaign layouts and flows while following each client's brand guidelines.\n\nMy Figma design rate is USD 25–30 per email; Klaviyo building is quoted separately. You can see my work here: " + profile["portfolio_url"] + "\n\nWould it be useful to discuss a small paid design trial?\n\nShine\n\n[DEMO: fictional company; do not send]", "evidence": [{"url": lead["url"], "quote": "ongoing freelance email designer for e-commerce clients"}]}
                     lead["draft"] = validate_draft(sample, lead)
                     lead["status"] = "Draft"
                     lead["draft_dirty"] = True

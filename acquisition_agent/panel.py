@@ -51,6 +51,7 @@ class Panel:
         self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='agent-panel')
         self.busy = threading.Lock()
         self.stopping = threading.Event()
+        self.client_lock = threading.Lock()
         store = open_store(state)
         store.db.execute("UPDATE panel_tasks SET status='Interrupted',result=? WHERE status IN ('Running','Queued')", (json.dumps({'error':'Panel stopped before completion. Inspect state before retrying.'}),))
         store.db.commit()
@@ -129,9 +130,21 @@ class Panel:
             if lead.get('status') in TERMINAL or any(item['lead_id']==lead['id'] and item['state'] in ('sending','sent','uncertain') for item in delivery.rows(store)):
                 raise ValueError('Closed, suppressed or contacted opportunities cannot be edited')
             prefs, profile, exclusions, _ = self.settings()
+            if os.getenv('NOTION_TOKEN') and lead.get('notion_page_id'):
+                from .providers import Notion
+                lead=delivery.remote_lead(store,Notion(),lead,persist=False)
+                if lead.get('notion_status') in TERMINAL|{'Approve','Ready','Scheduled'}:
+                    raise ValueError('Preserve approved or contacted messages. Put an unsent record in Needs Review before editing.')
             if assess(lead,prefs,exclusions)['status'] in ('Closed','Do Not Contact'):
                 raise ValueError('Current targeting or exclusions block this opportunity')
+            if not lead.get("design_quote"):
+                from .commercial import DEFAULT_QUOTE
+                lead.update(design_quote=DEFAULT_QUOTE,quote_schema_version=1)
+            lead["portfolio_url"]=profile.get("curated_portfolio_url") or profile["portfolio_url"]
             draft = validate_draft(payload,lead,profile)
+            from .approval_checks import pricing_issue
+            price=pricing_issue(dict(lead,draft=draft),prefs)
+            if price:raise ValueError(price)
             clear_draft_repair(lead)
             lead.update(draft=draft, draft_dirty=True, status='Draft')
             lead.pop('starter_seed',None)
@@ -168,12 +181,24 @@ class Panel:
             else:
                 if not isinstance(value,list) or len(value)!=2 or any(type(v) not in (int,float) for v in value) or not 1<=value[0]<=value[1]<=1000:
                     raise ValueError('Design price must be [minimum, maximum] in USD/email')
-                # Drafting and offer text use the agreed 20–30 rate. Price edits must be consistent throughout before enabling.
-                if value != [20,30]:
-                    raise ValueError('Pricing remains USD 20–30/email. Update profile, drafting and offer configuration together before changing it.')
+                # Legacy budget baseline; offered quotes are selected per prospect.
+                if value not in ([25,30],[30,35]):
+                    raise ValueError('Choose a supported design range. Prospect quotes are selected individually in Client development.')
                 prefs[name]=value
         write_json(self.root/'config/preferences.json',prefs)
         return {'saved':True,'message':'Targeting saved. Any existing sending-policy approval is invalidated by this change.'}
+
+    def client_workflow(self,payload=None):
+        from .client_workflow import ClientWorkflow
+        from .providers import Notion
+        store=open_store(self.state)
+        try:
+            prefs,profile,_,sending=self.settings()
+            service=ClientWorkflow(store,Notion() if os.getenv('NOTION_TOKEN') else None,prefs['notion_leads_source_id'],profile,sending)
+            if payload is None:return service.cached()
+            if not os.getenv('NOTION_TOKEN'):raise ValueError('Connect Notion before changing client-development records')
+            with self.client_lock:return service.action(payload)
+        finally:store.db.close()
 
     def campaign(self,payload):
         store=open_store(self.state)
@@ -290,9 +315,10 @@ def make_server(panel, port=0):
                 return self.reply(303,'','text/plain',{'Location':'/','Set-Cookie':'shine_panel='+panel.key+'; HttpOnly; SameSite=Strict; Path=/'})
             if not self.authorized():return self.reply(401,{'error':'Open the private URL printed by the dashboard command'})
             try:
+                if parts.path=='/api/client-workflow':return self.reply(200,panel.client_workflow())
                 if parts.path=='/api/state':return self.reply(200,panel.snapshot())
                 if parts.path=='/api/lead':return self.reply(200,panel.detail(parse_qs(parts.query).get('id',[''])[0]))
-                assets={'/':('index.html','text/html'),'/app.js':('app.js','text/javascript'),'/style.css':('style.css','text/css')}
+                assets={'/workflow.js':('workflow.js','text/javascript'),'/':('index.html','text/html'),'/app.js':('app.js','text/javascript'),'/style.css':('style.css','text/css')}
                 if parts.path in assets:
                     name,media=assets[parts.path];return self.reply(200,(ASSETS/name).read_text(),media)
                 return self.reply(404,{'error':'Not found'})
@@ -314,6 +340,7 @@ def make_server(panel, port=0):
                     try:store.pause(payload['paused'])
                     finally:store.db.close()
                     return self.reply(200,{'paused':payload['paused']})
+                if path=='/api/client-workflow':return self.reply(200,panel.client_workflow(payload))
                 if path=='/api/task':return self.reply(202,panel.submit(payload.get('kind'),payload))
                 if path=='/api/campaign':return self.reply(200,panel.campaign(payload))
                 if path=='/api/target-session':return self.reply(200,panel.target_session(payload))
