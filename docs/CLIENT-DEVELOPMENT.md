@@ -28,7 +28,7 @@ Previously approved/sent quotes stay intact. Put an unsent record into Needs Rev
 before changing its quote or message. The existing IR and Prism quote decisions
 remain valid when their new quote field is blank.
 
-New drafts use the curated portfolio through the prospect's **Portfolio Link**.
+New drafts use your selected portfolio through the prospect's **Portfolio Link**.
 Existing approved messages retain their original link and exact wording. The hosted
 sender accepts the owner-confirmed curated link without replacing its legacy global
 profile or resetting policy approval. Portfolio client names stay out of email text.
@@ -76,8 +76,11 @@ Review the first four weeks as directional evidence, not a statistically proven 
 
 ## Portfolio and website
 
-Curated Figma presentation:
-https://www.figma.com/design/ADkHTEIJLd52MjGcIT1sfX/Portfolio?node-id=9-17
+Selected outreach portfolio (confirmed 19 November 2026):
+https://www.figma.com/design/Fy8kepSEJnGAZlt6Wi001T/Email-Design-%F0%9F%8C%9F?node-id=0-1
+
+Use this original Email Design file for future outreach. The separate three-project
+presentation remains available as an optional asset; it is not the default outreach link.
 
 Projects: Happy Dog, Retronanix and Tapijtenloods. Shine confirmed Figma design
 and Klaviyo implementation for all three; copy was supplied. Names are authorised
