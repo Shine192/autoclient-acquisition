@@ -78,7 +78,10 @@ def source_fingerprint(p,body,stage):
 
 def record(page):
     p=page['properties'];key=text(p,'Deduplication Key')
-    notes=parsed(p,'Research Notes',{})
+    # Older records can contain human notes. Keep them visible without treating
+    # unstructured text as verified evidence or rewriting the owner's notes.
+    try:notes=parsed(p,'Research Notes',{})
+    except ValueError:notes={}
     from .commercial import agency_context
     facts=agency_context({'url':p.get('Job URL',{}).get('url') or p.get('WEBSITE',{}).get('url') or '',
                           'source_documents':notes.get('source_documents',[])})

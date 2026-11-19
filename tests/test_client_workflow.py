@@ -141,6 +141,15 @@ class WorkflowTests(unittest.TestCase):
         p['Research Notes']=prop(json.dumps({'source_documents':[{'url':'https://unrelated.example','text':'Email marketing for e-commerce.'}]}))
         self.assertFalse(record(self.n.page)['qualified'])
 
+    def test_legacy_human_notes_remain_visible_without_qualifying_as_source_evidence(self):
+        self.n.page['properties']['Research Notes']=prop('Historical research note written by the owner.')
+        before=copy.deepcopy(self.n.page)
+        result=self.w.refresh()
+        self.assertEqual(len(result['rows']),1)
+        self.assertFalse(result['rows'][0]['qualified'])
+        self.assertEqual(self.n.page,before)
+        self.assertFalse(self.n.writes)
+
     def test_followup_review_waits_for_receipt_and_never_creates_an_outbox(self):
         self.action('followup_draft',stage=1)
         with self.assertRaisesRegex(ValueError,'initial saved receipt'):self.action('followup_review',stage=1)
