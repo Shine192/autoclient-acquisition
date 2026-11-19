@@ -43,7 +43,9 @@ def validate_spec(payload, prefs):
     if kind not in ('Cold Outreach','Posted Job'): raise ValueError('Choose prospective clients or advertised jobs')
     limit=payload.get('limit',5)
     if type(limit) is not int or not 1<=limit<=20: raise ValueError('Choose 1–20 candidates')
-    return {'country':country,'city':city,'company_type':company_type,'industries':list(dict.fromkeys(industries)),'kind':kind,'limit':limit}
+    from .commercial import DEFAULT_QUOTE, quote_range
+    quote = payload.get('design_quote', DEFAULT_QUOTE);quote_range(quote)
+    return {'country':country,'city':city,'company_type':company_type,'industries':list(dict.fromkeys(industries)),'kind':kind,'limit':limit, 'design_quote':quote, 'agency_focus':bool(payload.get('agency_focus',False) and company_type=='Agency')}
 
 
 def init(store):
@@ -62,6 +64,9 @@ def get_session(store,key):
 
 
 def build_prompt(spec,profile,prefs,exclusions):
+    from .commercial import DEFAULT_QUOTE, drafting_profile, quote_instruction, audience_instruction
+    label=spec.get('design_quote') or DEFAULT_QUOTE
+    profile=drafting_profile(profile,label)
     focuses=[INDUSTRIES[x] for x in spec['industries']]
     company_term={'Brand':'brand store','Agency':'email marketing Klaviyo agency','Start-up':'startup company'}[spec['company_type']]
     search_terms=[x['search'] for x in focuses] or ['email marketing']
@@ -85,7 +90,7 @@ def build_prompt(spec,profile,prefs,exclusions):
         'Use source_text for the main page and up to three official source_documents for products, location and contacts. All documents must be on the same official company host. '+
         'For every candidate, write a simple friendly 100–150 word draft using verified company details and the supplied applicant facts. '+
         'End the email with the exact applicant email_signature when supplied. Include the exact portfolio URL. No invented results, clients, certifications, audits or subscription claims. No guaranteed conversions, capacity/date commitments, or free work. '+
-        'Figma design is USD 20–30/email; quote Klaviyo separately. Use one low-pressure paid-test next step; vary the wording naturally. '+
+        quote_instruction(label)+' Use one low-pressure next step; vary the wording naturally. '+audience_instruction(spec)+
         'Industry design guidance is an idea for how Shine could help, NOT proof of a company problem. Never claim missing flows, poor emails or lost revenue without evidence. '+
         'For Posted Job follow the actual application instructions, add posted_at if published, and flag eligibility restrictions. For Cold Outreach reference a verified product/service and suggest relevant support. '+
         '\nBRIEF: '+json.dumps(spec)+'\nSEARCH QUERIES: '+json.dumps(queries)+
@@ -160,7 +165,10 @@ def import_batch(store,session,items,prefs,profile,exclusions):
             if not isinstance(docs,list) or len(docs)>3:raise ValueError('Use up to three official source documents')
             if any(hostname(d['url'])!=hostname(raw['url']) for d in docs):raise ValueError('Source documents must use the official company host')
             lead=prepare_lead(raw)
-            lead.update(location_city=str(raw.get('location_city',''))[:100],industry=raw.get('industry',''),target_evidence=raw.get('target_evidence',{}),target_session={'id':session['id'],'spec':spec})
+            lead.update(design_quote=spec['design_quote'],quote_schema_version=1,portfolio_url=profile.get('curated_portfolio_url') or profile['portfolio_url'],agency_fit_evidence=raw.get('agency_fit_evidence',{}),business_signal=raw.get('business_signal',{}),employees=raw.get('employees'),location_city=str(raw.get('location_city',''))[:100],industry=raw.get('industry',''),target_evidence=raw.get('target_evidence',{}),target_session={'id':session['id'],'spec':spec})
+            if spec.get('agency_focus'):
+                from .commercial import agency_context
+                lead.update(agency_context(lead,raw))
             lead['industry_design_focus']=INDUSTRIES.get(lead['industry'],{}).get('focus','')
             lead['industry_label']=INDUSTRIES.get(lead['industry'],{}).get('name',lead['industry'])
             lead['target_reasons']=target_check(lead)

@@ -138,10 +138,13 @@ class Notion:
                 # An initial source pack must not overwrite a draft already edited in Notion.
                 lead["draft_dirty"] = False
             if lead.get("draft_dirty"):
-                if remote_status in ("Sent", "Sending", "Replied", "Interview", "Won", "Closed", "Do Not Contact", "Rejected", "Rejected") or props.get("Do Not Contact", {}).get("checkbox"):
+                if remote_status in ("Approve", "Ready", "Scheduled", "Sent", "Sending", "Replied", "Interview", "Won", "Closed", "Do Not Contact", "Rejected", "Rejected") or props.get("Do Not Contact", {}).get("checkbox"):
                     raise ValueError("Notion row is closed, contacted or suppressed; refusing draft overwrite")
+                selected_quote=(props.get("Design Quote",{}).get("select") or {}).get("name")
+                if selected_quote and lead.get("design_quote")!=selected_quote:
+                    raise ValueError("The selected quote changed in Notion. Reopen this record before saving the draft.")
                 draft = lead["draft"]
-                self.request("pages/" + page["id"], "PATCH", {"properties": {"email SUBJECT": {"rich_text": rich(draft["subject"])}, "email body": {"rich_text": rich(draft["body"])}, "STATUS": {"status": {"name": "Draft"}}, "Approved": {"checkbox": False}, "Research Notes": {"rich_text": rich(research_notes(lead))}, **({"Error": {"rich_text": []}} if lead.get("draft_repaired") else {})}})
+                self.request("pages/" + page["id"], "PATCH", {"properties": {"email SUBJECT": {"rich_text": rich(draft["subject"])}, "email body": {"rich_text": rich(draft["body"])}, "STATUS": {"status": {"name": "Draft"}}, "Approved": {"checkbox": False}, **({"Design Quote":{"select":{"name":lead["design_quote"]}}} if lead.get("design_quote") else {}), **({"Portfolio Link":{"url":lead["portfolio_url"]}} if lead.get("portfolio_url") else {}), "Research Notes": {"rich_text": rich(research_notes(lead))}, **({"Error": {"rich_text": []}} if lead.get("draft_repaired") else {})}})
                 remote_status = "Draft"
             lead["notion_page_id"] = page["id"]
             lead["status"] = remote_status
@@ -159,11 +162,21 @@ class Notion:
 
 
 def research_notes(lead):
-    return json.dumps({"draft_error":lead.get("draft_error", ""), "target_session":lead.get("target_session"), "location_city":lead.get("location_city", ""), "industry":lead.get("industry", ""), "target_evidence":lead.get("target_evidence", {}), "target_reasons":lead.get("target_reasons", []), "job_url": lead["url"], "source": lead.get("research_source_url", lead["url"]), "research_level": lead.get("research_level", "Supplied text"), "research_warning": lead.get("research_warning", ""), "checked_at": lead.get("checked_at", ""), "country_source_url": lead.get("country_source_url", ""), "country_evidence": lead.get("country_evidence", ""), "collected": lead["discovered_at"], "review_reasons": lead.get("reasons", []), "source_excerpt": lead.get("source_text", "")[:5000], "source_documents": lead.get("source_documents", []), "email_candidates": lead.get("email_candidates", []), "personalization_evidence": lead.get("draft", {}).get("evidence", []), "ai_prompt_file": lead.get("prompt_file", ""), "demo": lead.get("is_demo", False)}, ensure_ascii=False, indent=2)
+    return json.dumps({"draft_error":lead.get("draft_error", ""), "target_session":lead.get("target_session"), "location_city":lead.get("location_city", ""), "industry":lead.get("industry", ""), "target_evidence":lead.get("target_evidence", {}), "target_reasons":lead.get("target_reasons", []), "job_url": lead["url"], "source": lead.get("research_source_url", lead["url"]), "research_level": lead.get("research_level", "Supplied text"), "research_warning": lead.get("research_warning", ""), "checked_at": lead.get("checked_at", ""), "country_source_url": lead.get("country_source_url", ""), "country_evidence": lead.get("country_evidence", ""), "collected": lead["discovered_at"], "review_reasons": lead.get("reasons", []), "source_excerpt": lead.get("source_text", "")[:5000], "source_documents": lead.get("source_documents", []), "email_candidates": lead.get("email_candidates", []), "personalization_evidence": lead.get("draft", {}).get("evidence", []), "ai_prompt_file": lead.get("prompt_file", ""), "demo": lead.get("is_demo", False), "quote_schema_version":lead.get("quote_schema_version"), "agency_fit_evidence":lead.get("agency_fit_evidence",{}), "business_signal":lead.get("business_signal",{}), "employees":lead.get("employees"), "ecommerce_fit_verified":lead.get("ecommerce_fit_verified")}, ensure_ascii=False, indent=2)
 
 
 def lead_properties(lead):
     props = {"Name": {"title": rich(("[DEMO] " if lead.get("is_demo") else "") + (lead.get("company") or lead["title"]))}, "STATUS": {"status": {"name": lead["status"]}}, "Role": {"rich_text": rich(lead["title"])}, "COUNTRY": {"rich_text": rich(lead.get("country", ""))}, "Opportunity Type": {"select": {"name": lead["kind"]}}, "Job URL": {"url": lead["url"]}, "WEBSITE": {"url": lead.get("website") or None}, "EMAIL": {"email": lead.get("email") or None}, "Contact Source URL": {"url": lead.get("contact_source_url") or None}, "Research Notes": {"rich_text": rich(research_notes(lead))}, "Deduplication Key": {"rich_text": rich(lead["id"])}, "Match Score": {"number": lead["score"]}, "Approved": {"checkbox": False}, "Do Not Contact": {"checkbox": lead["status"] == "Do Not Contact"}, "Remote Eligibility": {"select": {"name": lead.get("remote_eligibility", "Unknown")}}}
+    if lead.get("portfolio_url"):
+        props["Portfolio Link"]={"url":lead["portfolio_url"]}
+    if lead.get("agency_fit_evidence"):
+        props["Agency Fit"]={"rich_text":rich(json.dumps(lead["agency_fit_evidence"],ensure_ascii=False))}
+    if lead.get("business_signal"):
+        props["Business Signal"]={"rich_text":rich(json.dumps(lead["business_signal"],ensure_ascii=False))}
+    if lead.get("design_quote"):
+        from .commercial import quote_range
+        quote_range(lead["design_quote"])
+        props["Design Quote"]={"select":{"name":lead["design_quote"]}}
     if lead.get("type") in ("Agency", "Brand", "Start-up"):
         props["Type"] = {"select": {"name": lead["type"]}}
     if lead.get('target_session'):

@@ -58,6 +58,9 @@ def published_work_enquiry(lead, document):
 
 
 def offered_design_range(lead, preferences):
+    if lead.get('design_quote'):
+        from .commercial import quote_range
+        return quote_range(lead['design_quote'])
     offer = matching_offer(lead)
     if offer:
         return list(offer['design_rate_usd'])
@@ -65,8 +68,11 @@ def offered_design_range(lead, preferences):
 
 
 def pricing_issue(lead, preferences):
+    if lead.get('quote_schema_version')==1 and not lead.get('design_quote'):
+        return 'Select the prospect design quote before approval; it is separate from client compensation'
     body = (lead.get('draft') or {}).get('body', '')
-    allowed = offered_design_range(lead, preferences)
+    try:allowed = offered_design_range(lead, preferences)
+    except ValueError as exc:return str(exc)
     for match in re.finditer(r'(?:USD\s*|\$)(\d+(?:\.\d+)?)\s*[-–—]\s*\$?(\d+(?:\.\d+)?)\s*(?:USD\s*)?(?:/|per\s+)email', body, re.I):
         if [float(match[1]), float(match[2])] != allowed:
             return 'Draft per-email price differs from configured Figma design range; confirm pricing before approval'

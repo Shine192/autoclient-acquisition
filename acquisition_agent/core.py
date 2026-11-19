@@ -210,6 +210,9 @@ def prepare_lead(raw):
 
 
 def draft_prompt(lead, profile, config):
+    from .commercial import DEFAULT_QUOTE, drafting_profile, quote_instruction
+    label = lead.get("design_quote") or DEFAULT_QUOTE
+    profile = drafting_profile(profile, label)
     schema = {"lead_id": lead["id"], "subject": "Specific plain subject", "body": "Plain text email", "evidence": [{"url": lead.get("research_source_url", lead["url"]), "quote": "Exact short quotation from supplied research"}]}
     return (
         "Write ONE personalized freelance application or business introduction. Return JSON only.\n"
@@ -220,7 +223,7 @@ def draft_prompt(lead, profile, config):
         "reference a verified product/service/case study and suggest how Shine can help. Do not claim an audit or email subscription.\n"
         "Connect company details to relevant services. Portfolio supplied as a general link, not independently reviewed case studies.\n"
         "For targeted sessions, use industry design ideas as suggestions only; never claim the company has a problem without evidence. Offer a small paid test without ongoing commitment.\n"
-        "Figma design is USD 20–30/email, Klaviyo building priced separately. Do not commit capacity, dates or a final quote.\n"
+        + quote_instruction(label) + " Do not commit capacity or dates.\n" +
         "Do not put a recipient email in output. The program controls routing. No placeholders.\n"
         "Include at least one exact evidence quote from research, 12–400 characters; cite its supplied URL.\n"
         "If research_level is RSS excerpt, use only that excerpt and cite research_source_url. Do not claim to have reviewed the company website or confirmed that the vacancy is still open.\n"
@@ -231,6 +234,9 @@ def draft_prompt(lead, profile, config):
 
 
 def validate_draft(draft, lead, profile=None):
+    if profile:
+        from .commercial import profile_for_lead
+        profile=profile_for_lead(lead,profile)
     if draft.get("lead_id") != lead["id"]:
         raise ValueError("Draft belongs to a different lead")
     subject, body = draft.get("subject", ""), draft.get("body", "")
@@ -242,6 +248,9 @@ def validate_draft(draft, lead, profile=None):
         raise ValueError("Draft contains unresolved placeholders")
     if profile and profile.get("portfolio_url") not in body:
         raise ValueError("Draft must include the exact applicant portfolio URL")
+    from .commercial import portfolio_name_issue
+    issue = portfolio_name_issue(subject + "\n" + body)
+    if issue:raise ValueError(issue)
     evidence = draft.get("evidence", [])
     if not evidence or not isinstance(evidence, list):
         raise ValueError("Personalization needs source evidence")
