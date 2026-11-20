@@ -24,7 +24,7 @@ def schema():
     for stage in (1,2):
         prefix='Follow-up '+str(stage)
         fields.update({prefix+' Draft':{'rich_text':{}},
-            prefix+' Review':select(['Draft','Reviewed','Held','Cancelled','Sent manually']),
+            prefix+' Review':select(['Draft','Reviewed','Approve','Held','Cancelled','Sent','Sent manually']),
             prefix+' Due':{'date':{}}, prefix+' Delivery':{'rich_text':{}},
             prefix+' Sent Time':{'date':{}}, prefix+' Receipt':{'rich_text':{}}})
     return fields
@@ -94,10 +94,10 @@ def record(page):
     followups=[]
     for stage in (1,2):
         prefix='Follow-up '+str(stage);body=text(p,prefix+' Draft');review=selected(p,prefix+' Review') or 'Draft'
-        if stopped(p) and review!='Sent manually':review='Cancelled'
-        elif review=='Reviewed' and reviews.get(str(stage),{}).get('sha256')!=source_fingerprint(p,body,stage):review='Needs review'
+        if stopped(p) and review not in ('Sent','Sent manually'):review='Cancelled'
+        elif review in ('Reviewed','Approve') and reviews.get(str(stage),{}).get('sha256')!=source_fingerprint(p,body,stage):review='Needs review'
         followups.append({'stage':stage,'body':body,'review':review,'due':date(p,prefix+' Due'),
-                          'delivery':'Automatic delivery disabled; review does not send mail',
+                          'delivery':text(p,prefix+' Delivery') or 'Draft; separate approval required for delivery',
                           'sent_time':date(p,prefix+' Sent Time'),'receipt':text(p,prefix+' Receipt')})
     kind=selected(p,'Opportunity Type');company_type=selected(p,'Type')
     return {'id':key,'page_id':page['id'],'company':name,'status':status,'region':region,
@@ -160,7 +160,7 @@ class ClientWorkflow:
     def cached(self):
         rows=[json.loads(r[0]) for r in self.store.db.execute('SELECT data FROM client_workflow_cache ORDER BY rowid')]
         return {'rows':rows,'summary':summary(rows),'experiment':EXPERIMENT,'quotes':list(QUOTES),
-                'paid_test_scope':PAID_TEST_SCOPE,'automatic_followups_enabled':False}
+                'paid_test_scope':PAID_TEST_SCOPE,'automatic_followups_enabled':False,'followup_delivery':'Separately approved follow-ups are delivered by the hosted sender when activated.'}
 
     def refresh(self):
         pages=list(self.notion.query(self.source));rows=[]
@@ -229,14 +229,14 @@ class ClientWorkflow:
             if len(json.dumps(events))>90000:raise ValueError('Outcome history is too large; preserve and archive with assistance')
             props={'Reply Classification':{'select':{'name':classification}},'Client Outcome':{'select':{'name':outcome}},
                    'Acquisition Events':{'rich_text':rich(json.dumps(events))},'Acquisition Minutes':{'number':r['minutes']+minutes}}
-        elif action in ('followup_draft','followup_review','followup_hold','followup_record_sent'):
+        elif action in ('followup_draft','followup_review','followup_approve','followup_hold','followup_record_sent'):
             stage=payload.get('stage')
             if type(stage) is not int or stage not in (1,2):raise ValueError('Choose follow-up 1 or 2')
             prefix='Follow-up '+str(stage);f=r['followups'][stage-1]
             if stopped(p):raise ValueError('A reply, stop state or unresolved delivery holds follow-ups')
-            if f['receipt'] or f['review']=='Sent manually':raise ValueError('Preserve this recorded follow-up; never prepare it as a new send')
+            if f['receipt'] or f['review'] in ('Sent','Sent manually'):raise ValueError('Preserve this recorded follow-up; never prepare it as a new send')
             body=payload.get('body',f['body'])
-            portfolio=p.get('Portfolio Link',{}).get('url') or self.profile['portfolio_url']
+            portfolio=self.profile.get('curated_portfolio_url') or p.get('Portfolio Link',{}).get('url') or self.profile['portfolio_url']
             from .commercial import profile_for_lead
             checked_profile=profile_for_lead({'portfolio_url':portfolio},self.profile)
             if action=='followup_draft' and not body:
@@ -257,8 +257,8 @@ class ClientWorkflow:
             check_draft(lead,checked_profile,self.sending)
             price=pricing_issue(lead,{'design_rate_usd':[25,30]})
             if price:raise ValueError(price)
-            if action=='followup_review' and (not r['initial_sent'] or not text(p,'Gmail Thread ID')):raise ValueError('Wait for the initial saved receipt and conversation thread before reviewing a follow-up')
-            if stage==2 and action in ('followup_review','followup_record_sent') and not r['followups'][0]['receipt']:raise ValueError('Record the first follow-up receipt before reviewing the second')
+            if action in ('followup_review','followup_approve') and (not r['initial_sent'] or not text(p,'Gmail Thread ID')):raise ValueError('Wait for the initial saved receipt and conversation thread before reviewing a follow-up')
+            if stage==2 and action in ('followup_review','followup_approve','followup_record_sent') and not r['followups'][0]['receipt']:raise ValueError('Record the first follow-up receipt before reviewing the second')
             if action=='followup_record_sent':
                 receipt=payload.get('receipt','').strip();sent=payload.get('sent_time','')
                 if f['review']!='Reviewed':raise ValueError('Review the exact draft and current source first')
@@ -275,13 +275,13 @@ class ClientWorkflow:
                     raise ValueError('This receipt already belongs to a recorded message')
                 props.update({prefix+' Receipt':{'rich_text':rich(receipt)},prefix+' Sent Time':{'date':{'start':dt.isoformat()}}})
                 state='Sent manually'
-            else:state={'followup_draft':'Draft','followup_review':'Reviewed','followup_hold':'Held'}[action]
+            else:state={'followup_draft':'Draft','followup_review':'Reviewed','followup_approve':'Approve','followup_hold':'Held'}[action]
             zone=selected(p,'Company Time Zone')
             base=date(p,'sent time') if stage==1 else date(p,'Follow-up 1 Sent Time')
             due=due_after(base,5 if stage==1 else 7,zone) if base and zone else None
             props.update({prefix+' Draft':{'rich_text':rich(body)},prefix+' Review':{'select':{'name':state}},
                           prefix+' Due':{'date':{'start':due}} if due else {'date':None},
-                          prefix+' Delivery':{'rich_text':rich('Manually reported sent; no automatic send performed' if state=='Sent manually' else 'Automatic sending disabled. '+('Awaiting initial/previous receipt.' if not due else 'Review date only; not a scheduled send.'))}})
+                          prefix+' Delivery':{'rich_text':rich('Manually reported sent; no automatic send performed' if state=='Sent manually' else ('Individually approved delivery; final checks apply. ' if state=='Approve' else 'Separate approval required for delivery. ')+('Awaiting initial/previous receipt.' if not due else 'Review date only; not a scheduled send.'))}})
             reviews=parsed(p,'Follow-up Review Log',{})
             reviews[str(stage)]={'state':state,'at':timestamp(),'sha256':source_fingerprint(p,body,stage)}
             props['Follow-up Review Log']={'rich_text':rich(json.dumps(reviews))}

@@ -64,7 +64,7 @@ def offered_design_range(lead, preferences):
     offer = matching_offer(lead)
     if offer:
         return list(offer['design_rate_usd'])
-    return list(preferences['design_rate_usd'])
+    return list(preferences['design_rate_usd'])  # Legacy records retain their original approved commercial terms.
 
 
 def pricing_issue(lead, preferences):

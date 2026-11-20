@@ -95,6 +95,12 @@ class Queue:
                 if item.get('campaign') or c.get('approval_policy_hash') != settings_hash:
                     raise ValueError('Approval delivery policy is not active')
             elif 'active_campaign' in c and c['active_campaign']!=item.get('campaign'):raise ValueError('Campaign is not active')
+            if item.get('stage',0):
+                parent=tx.get('outbox_'+item.get('parent_id',''))
+                if (not c.get('reviewed_followups_enabled') or not approval_mode or item['stage'] not in (1,2) or
+                    not parent or parent.get('stage',0) or parent['state']!='sent' or parent.get('reply_reason') or
+                    parent.get('notion_sync_pending') or parent['recipient']!=item['recipient'] or parent['company']!=item['company']):
+                    raise ValueError('Follow-up activation or parent receipt is invalid')
             if item['state'] != 'queued': raise ValueError('Already attempted or blocked')
             if c.get('active_attempt'): raise ValueError('Unresolved send blocks all new sends')
             if c.get('approved_hash') != settings_hash or not c.get('test_verified'):
