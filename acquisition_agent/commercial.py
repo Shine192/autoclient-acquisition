@@ -4,6 +4,7 @@ import re
 
 QUOTES = {'USD 25–30/email': [25, 30], 'USD 30–35/email': [30, 35]}
 DEFAULT_QUOTE = 'USD 25–30/email'
+OUTREACH_PORTFOLIO = 'https://shine-email-studio.htooaungshine789.chatgpt.site'
 CURATED_PORTFOLIO = 'https://www.figma.com/design/ADkHTEIJLd52MjGcIT1sfX/Portfolio?node-id=9-17'
 PAID_TEST_SCOPE = ('One Figma email with desktop and mobile layouts, client-supplied copy and assets, '
                    'and one revision round. Klaviyo implementation is quoted separately. '
@@ -46,7 +47,7 @@ def profile_for_lead(lead,profile):
     value=copy.deepcopy(profile)
     url=lead.get('portfolio_url')
     if url:
-        if url not in (CURATED_PORTFOLIO,profile.get('portfolio_url')):
+        if url not in (OUTREACH_PORTFOLIO,CURATED_PORTFOLIO,profile.get('portfolio_url')):
             raise ValueError('Prospect portfolio link is not an owner-confirmed portfolio')
         value['portfolio_url']=url
     return value

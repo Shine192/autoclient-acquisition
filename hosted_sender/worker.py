@@ -52,6 +52,9 @@ class Worker:
         return delivery.remote_lead(store,self.notion,current,persist=False,page=page)
 
     def preflight(self, item, store):
+        if item.get('stage',0):
+            from .followups import preflight
+            return preflight(self,item)
         lead = self.q.db.get('lead_' + item['lead_id'])['data']
         lead = self.reviewed_lead(store,lead)
         if lead.get('notion_status')!='Approve':raise ValueError('Notion approval was withdrawn')
@@ -131,6 +134,11 @@ class Worker:
 
     def hold(self,item,reason):
         self.q.hold(item['id'],'Preflight failed; review the Notion record')
+        if item.get('stage',0):
+            page=self.q.db.get('lead_'+item['lead_id'])['data']['notion_page_id']
+            prefix='Follow-up '+str(item['stage'])
+            self.notion.request('pages/'+page,'PATCH',{'properties':{prefix+' Review':{'select':{'name':'Held'}},prefix+' Delivery':{'rich_text':rich('Held: '+reason[:400])}}})
+            return
         page=self.q.db.get('lead_'+item['lead_id'])['data']['notion_page_id']
         current=self.notion.request('pages/'+page,'GET')
         if current.get('archived') or current.get('in_trash'):return
@@ -159,6 +167,8 @@ class Worker:
         if self.q.control().get('active_attempt'): raise ValueError('Reconcile unresolved send first')
         if any(saved.get('notion_sync_pending') for saved in self.q.db.list('outbox') if saved['state']=='sent' and saved.get('mode')!='test'):
             return {'state':'notion-sync-pending'}
+        from .followups import enqueue
+        enqueue(self)
         for item in sorted(self.q.db.list('outbox'), key=lambda x: x.get('due_at', 0)):
             if item['state'] != 'queued' or item.get('mode') == 'test' or item['due_at'] > now: continue
             with tempfile.TemporaryDirectory() as folder:
@@ -174,8 +184,8 @@ class Worker:
             try:
                 self.report('source_and_history_check')
                 delivery.recheck(lead, self.s['preferences'], self.research)
-                if self.gmail.prior_contact(item['recipient']):raise ValueError('Gmail already contains contact with this recipient')
-                if self.gmail.prior_company_contact(item['company']):raise ValueError('Gmail may already contain contact with this company; review history')
+                if not item.get('stage',0) and self.gmail.prior_contact(item['recipient']):raise ValueError('Gmail already contains contact with this recipient')
+                if not item.get('stage',0) and self.gmail.prior_company_contact(item['company']):raise ValueError('Gmail may already contain contact with this company; review history')
             except ValueError as exc:
                 self.hold(item,str(exc));continue
             # Refresh time after network work; never dispatch using a stale 10:59 check.
@@ -205,7 +215,7 @@ class Worker:
                 if hasattr(self.q.db,'assert_current'):self.q.db.assert_current()
                 if self.q.control()['paused']: raise ValueError('Paused immediately before dispatch')
                 self.report('gmail_dispatch')
-                result = self.gmail.send(cfg['sender'], item['recipient'], item['subject'], item['body'], item['message_id'])
+                result = self.gmail.send(cfg['sender'], item['recipient'], item['subject'], item['body'], item['message_id'], **({'thread_id':item['thread_id'],'reply_to':item['reply_to']} if item.get('stage',0) else {}))
                 self.report('receipt_persistence')
                 self.q.outcome(item['id'], result)
             except Exception:
@@ -265,6 +275,9 @@ class Worker:
     def _sync_one(self, key):
         item = self.q.db.get('outbox_' + key)
         if item['state'] != 'sent' or item.get('mode') == 'test': return
+        if item.get('stage',0):
+            from .followups import sync
+            return sync(self,item)
         lead = self.q.db.get('lead_' + item['lead_id'])['data']
         current=self.notion.request('pages/'+lead['notion_page_id'],'GET')
         if current.get('archived') or current.get('in_trash'):return False

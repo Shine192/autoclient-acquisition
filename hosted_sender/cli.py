@@ -27,7 +27,7 @@ def policy_summary(settings):
             'daily_limit':cfg['daily_limit'],'company_local_hours':cfg['send_hours'],
             'weekdays':cfg['send_weekdays'],'minimum_interval_seconds':cfg['minimum_interval_seconds'],
             'minimum_fit_score':cfg['minimum_fit_score'],'offers':[k for k,v in cfg['offers'].items() if v['enabled']],
-            'followups':'disabled','approval':'Notion STATUS = Approve','history':'Encrypted persistent Git branch'}
+            'followups':'Separate approval required; legacy unattended generator disabled','approval':'Notion STATUS = Approve','history':'Encrypted persistent Git branch'}
 
 def enable_approvals(q,s,expected):
     """Explicit once-only change from a dated pilot to ongoing row approval.
@@ -54,6 +54,20 @@ def enable_approvals(q,s,expected):
     return {'delivery_model':'notion-approval','campaign_required':False,
             'approval':'Notion STATUS = Approve','daily_limit':s['sending']['daily_limit'],
             'company_local_hours':s['sending']['send_hours'],'history_preserved':True}
+
+def enable_reviewed_followups(q,s,expected):
+    """Owner-requested activation; never approves an individual draft or dispatches."""
+    if expected!=settings_hash(s):raise ValueError('Review the active policy before enabling follow-ups')
+    def op(tx):
+        c=tx.get('control')
+        if (not c or c.get('delivery_model')!='notion-approval' or not c.get('test_verified') or
+            not c.get('migration_complete') or c.get('approved_hash')!=expected or
+            c.get('approval_policy_hash')!=expected or c.get('active_attempt')):
+            raise ValueError('Verified individual-approval policy and resolved delivery required')
+        c.update(reviewed_followups_enabled=True,reviewed_followups_enabled_at=datetime.now(timezone.utc).isoformat())
+        tx.put('control',c)
+    q.db.transaction(op)
+    return {'reviewed_followups_enabled':True,'individual_followup_approval_required':True,'emails_sent':0}
 
 def self_test(q,s,g):
     sender=s['sending']['sender'].lower()
@@ -186,7 +200,7 @@ def run(q,s,g,notion,max_seconds=225,report=lambda stage:None):
 
 def main():
     parser=argparse.ArgumentParser(description='GitHub delivery. No implicit initialization or reset.')
-    parser.add_argument('command',nargs='?',default='status',choices=['status','auth-check','review','dry-run','self-test','verify-test','activate','enable-approvals','pause','resume','campaign','close','run','reconcile'])
+    parser.add_argument('command',nargs='?',default='status',choices=['status','auth-check','review','dry-run','self-test','verify-test','activate','enable-approvals','enable-followups','pause','resume','campaign','close','run','reconcile'])
     parser.add_argument('--id',default=os.getenv('SHINE_ITEM_ID',''))
     parser.add_argument('--policy-hash',default=os.getenv('SHINE_POLICY_HASH',''))
     parser.add_argument('--target',type=int,default=int(os.getenv('SHINE_CAMPAIGN_TARGET','20') or '20'))
@@ -198,9 +212,10 @@ def main():
         if args.command=='status':
             from .health import snapshot,emit
             health=snapshot(q,s);emit(health)
-            print(json.dumps({'paused':q.control()['paused'],'migration_complete':q.control().get('migration_complete',False),'active_campaign':q.control().get('active_campaign'),'outstanding_attempt':bool(q.control().get('active_attempt')),**policy_summary(s)}));return
+            print(json.dumps({'reviewed_followups_enabled':q.control().get('reviewed_followups_enabled',False),'paused':q.control()['paused'],'migration_complete':q.control().get('migration_complete',False),'active_campaign':q.control().get('active_campaign'),'outstanding_attempt':bool(q.control().get('active_attempt')),**policy_summary(s)}));return
         if args.command=='pause':q.pause();print('{"paused":true}');return
         if args.command=='activate':print(json.dumps(activate(q,s,args.policy_hash)));return
+        if args.command=='enable-followups':print(json.dumps(enable_reviewed_followups(q,s,args.policy_hash)));return
         if args.command=='enable-approvals':print(json.dumps(enable_approvals(q,s,args.policy_hash)));return
         if args.command=='resume':
             c=q.control()

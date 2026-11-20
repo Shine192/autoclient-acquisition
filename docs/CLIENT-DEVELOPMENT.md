@@ -92,3 +92,37 @@ site first, with a larger project view for each example and a clear enquiry link
 Use the approved work and contribution text; keep results unclaimed unless verified.
 Choose the domain/hosting and approve public publication separately. No website
 was published or domain purchased as part of this update.
+
+## Updated owner decisions — 20 November 2026
+
+New prospects default to USD 25–30/email. USD 30–35 requires explicit selection;
+country, size and service-fit never select it. Published compensation remains
+separate. The old 20–30 preference remains only as a compatibility fallback for
+unmigrated historical messages; new drafts use the structured selected quote.
+IR's limited HR work enquiry and Prism's sent quote remain unchanged.
+
+The owner selected the public website for new outreach:
+https://shine-email-studio.htooaungshine789.chatgpt.site . Existing approved/sent
+messages keep their original portfolio link. Accurate revised website content is
+prepared separately and awaits final publication approval.
+
+Follow-up delivery now supports explicit owner activation in the encrypted
+sender control. This does not enable the legacy unattended follow-up generator.
+In Client development, prepare a draft and use **Approve this follow-up for
+delivery** for each exact message. Reviewed alone never sends. The initial
+STATUS stays Sent. Changing any reviewed source, recipient, quote, portfolio,
+initial receipt, message or timezone requires a new review. A five-business-day
+wait applies to the first follow-up and seven business days after the actual
+first follow-up send to the second. At most two are supported.
+
+Only original provider-verified conversation receipts are eligible. Manual
+follow-up records alone cannot authorize a second hosted send. Replies,
+rejection, opt-out, bounces, suppression, unrecorded manual outgoing messages,
+unavailable inboxes and unresolved delivery stop the process. Initial and
+follow-up attempts share weekday windows, spacing and daily limits. Saved
+follow-up receipts never replace initial receipts. Held follow-ups remain held
+for investigation, rather than being recreated automatically.
+
+After four weeks inspect unique initial sends, positive replies, paid tests
+agreed/completed, repeat clients, acquisition minutes and results by market and
+selected quote. Retain denominator counts and treat small samples as directional.

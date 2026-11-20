@@ -56,6 +56,7 @@ def refresh(queue,notion,settings,campaign_id=None):
             keys[key]=p
     # Finish a failed review-reset write before any old approval can be reused.
     for item in queue.db.list('outbox'):
+        if item.get('stage',0):continue
         if item['state']!='blocked' or item.get('approval_reset_done') or item.get('attempted_at'):continue
         lead=queue.db.get('lead_'+item['lead_id'])
         page=keys.get(item['lead_id'])
