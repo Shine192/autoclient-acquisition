@@ -58,6 +58,9 @@ class Worker:
         lead = self.q.db.get('lead_' + item['lead_id'])['data']
         lead = self.reviewed_lead(store,lead)
         if lead.get('notion_status')!='Approve':raise ValueError('Notion approval was withdrawn')
+        from acquisition_agent.simple_workflow import snapshot
+        page=self.notion.request('pages/'+lead['notion_page_id'],'GET')
+        if snapshot(page['properties'])!=item.get('sequence'):raise ValueError('Sequence changed after approval; review again')
         self.target_matches(lead, item['campaign'])
         draft = delivery.gate(store, lead, self.s['sending'], self.s['profile'], self.s['preferences'], self.s['exclusions'])
         if lead['email'] != item['recipient'] or hostname(lead.get('website') or lead['url']) != item['company']:
@@ -98,6 +101,17 @@ class Worker:
         from acquisition_agent.review import next_window
         due = datetime.fromisoformat(lead.get('scheduled_time') or next_window(self.s['sending'],lead))
         if due.tzinfo is None: raise ValueError('Scheduled Time must contain a timezone offset')
+        from acquisition_agent.simple_workflow import snapshot
+        page=self.notion.request('pages/'+lead['notion_page_id'],'GET')
+        sequence=snapshot(page['properties'])
+        if sequence:
+            candidate=dict(lead,draft=dict(lead['draft'],body=sequence['followup']))
+            from acquisition_agent.commercial import OUTREACH_PORTFOLIO
+            if OUTREACH_PORTFOLIO in sequence['followup']:candidate['portfolio_url']=OUTREACH_PORTFOLIO
+            delivery.check_draft(candidate,self.s['profile'],self.s['sending'])
+            from acquisition_agent.approval_checks import pricing_issue
+            issue=pricing_issue(candidate,self.s['preferences'])
+            if issue:raise ValueError(issue)
         body = draft['body']
         if lead['kind'] == 'Cold Outreach':
             from acquisition_agent.signature import with_footer
@@ -106,7 +120,7 @@ class Worker:
         result=self.q.enqueue({'id': key, 'campaign': campaign_id, 'lead_id': lead_id,
             'recipient': lead['email'], 'company': hostname(lead.get('website') or lead['url']),
             'company_timezone': lead['company_time_zone'], 'due_at': due.timestamp(),
-            'draft_hash': digest(draft), 'subject': draft['subject'], 'body': body,
+            'sequence':sequence, 'draft_hash': digest(draft), 'subject': draft['subject'], 'body': body,
             'message_id': '<shine-github-' + key + '@' + self.s['sending']['sender'].split('@')[1] + '>'})
         if result['state']=='queued':
             self.notion.request('pages/'+lead['notion_page_id'],'PATCH',{'properties':{
@@ -130,6 +144,17 @@ class Worker:
                         current=tx.get('outbox_'+item['id']);current['reply_reason']=reason;tx.put('outbox_'+item['id'],current)
                     self.q.db.transaction(remember)
                     self.sync_one(item['id'])
+                    if item.get('sequence'):
+                        from acquisition_agent.simple_workflow import reply_body
+                        page=self.q.db.get('lead_'+item['lead_id'])['data']['notion_page_id']
+                        current=self.notion.request('pages/'+page,'GET')['properties']
+                        from acquisition_agent.providers import text_value
+                        status=(current.get('Reply Draft Status',{}).get('select') or {}).get('name')
+                        if status in (None,'Template — review after reply'):
+                            negative=any(w in reason.lower() for w in ('bounce','opt-out','rejection'))
+                            self.notion.request('pages/'+page,'PATCH',{'properties':{
+                                'Reply Draft':{'rich_text':rich('No response recommended. Review the inbound message.' if negative else reply_body())},
+                                'Reply Draft Status':{'select':{'name':'No response needed' if negative else 'Needs your review'}}}})
                     break
 
     def hold(self,item,reason):

@@ -36,7 +36,7 @@ class ReviewedFollowupsTests(unittest.TestCase):
         enqueue(self.f.w);items=[i for i in self.q.db.list('outbox') if i.get('stage')]
         self.assertEqual(len(items),1);item=items[0]
         due=datetime.fromtimestamp(item['due_at'],timezone.utc)
-        self.assertEqual(due.date().isoformat(),'2026-10-26')
+        self.assertEqual(due.date().isoformat(),'2026-10-21')
         self.f.gmail.send.return_value={'id':'follow1','threadId':'thread1'}
         self.assertEqual(self.f.w.tick(item['due_at'])['state'],'sent')
         self.assertEqual(self.f.gmail.send.call_args.kwargs,{'thread_id':'thread1','reply_to':'<provider@sender.example>'})
@@ -90,21 +90,8 @@ class ReviewedFollowupsTests(unittest.TestCase):
         self.q.db.records['control']['active_attempt']='uncertain'
         with self.assertRaises(ValueError):enable_reviewed_followups(self.q,self.f.s,settings_hash(self.f.s))
 
-    def test_second_followup_requires_actual_first_receipt_and_waits_seven_business_days(self):
-        from hosted_sender.queue import digest
-        from acquisition_agent.client_workflow import due_after
-        key=digest([self.parent['id'],'followup',1])[:32]
-        first=dict(self.parent,id=key,stage=1,gmail_id='first',attempted_at=datetime(2026,10,26,4,tzinfo=timezone.utc).timestamp())
-        self.q.db.records['outbox_'+key]=first
-        p=self.page['properties'];p['Follow-up 1 Receipt']={'type':'rich_text','rich_text':rich('first')}
-        p['Follow-up 1 Sent Time']={'date':{'start':'2026-10-26T04:00:00+00:00'}}
-        p['Follow-up 2 Draft']=copy.deepcopy(p['Follow-up 1 Draft']);p['Follow-up 2 Review']={'select':{'name':'Approve'}}
-        p['Follow-up Review Log']={'type':'rich_text','rich_text':rich(json.dumps({'2':{'state':'Approve','sha256':source_fingerprint(p,self.f.lead['draft']['body'],2)}}))}
-        self.f.gmail.message.return_value['id']='first'
-        _,_,_,due,_=prepare(self.f.w,self.parent,2)
-        self.assertEqual(datetime.fromtimestamp(due,timezone.utc).date().isoformat(),'2026-11-04')
-        self.q.db.records['outbox_'+key]['notion_sync_pending']=True
-        with self.assertRaises(ValueError):prepare(self.f.w,self.parent,2)
+    def test_second_followup_is_never_delivered(self):
+        with self.assertRaisesRegex(ValueError,'disabled'):prepare(self.f.w,self.parent,2)
 
     def test_new_followup_uses_website_without_rewriting_initial_figma_link(self):
         from acquisition_agent.commercial import OUTREACH_PORTFOLIO

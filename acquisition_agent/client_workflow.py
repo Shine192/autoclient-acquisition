@@ -27,6 +27,7 @@ def schema():
             prefix+' Review':select(['Draft','Reviewed','Approve','Held','Cancelled','Sent','Sent manually']),
             prefix+' Due':{'date':{}}, prefix+' Delivery':{'rich_text':{}},
             prefix+' Sent Time':{'date':{}}, prefix+' Receipt':{'rich_text':{}}})
+    fields.update({'Sequence Mode':select(['Main + one follow-up','Hold']),'Pricing Reason':{'rich_text':{}},'Reply Draft':{'rich_text':{}},'Reply Draft Status':select(['Template — review after reply','Needs your review','No response needed'])})
     return fields
 
 
@@ -100,7 +101,7 @@ def record(page):
                           'delivery':text(p,prefix+' Delivery') or 'Draft; separate approval required for delivery',
                           'sent_time':date(p,prefix+' Sent Time'),'receipt':text(p,prefix+' Receipt')})
     kind=selected(p,'Opportunity Type');company_type=selected(p,'Type')
-    return {'id':key,'page_id':page['id'],'company':name,'status':status,'region':region,
+    return {'sequence_mode':selected(p,'Sequence Mode'),'id':key,'page_id':page['id'],'company':name,'status':status,'region':region,
         'quote':selected(p,'Design Quote'),'segment':selected(p,'Agency Segment'),
         'enrolled':bool(p.get('Agency Experiment',{}).get('checkbox')),'joined':date(p,'Experiment Joined'),
         'qualified':bool(company_type=='Agency' and kind=='Cold Outreach' and region in EXPERIMENT['regions'] and
@@ -115,7 +116,7 @@ def record(page):
 
 
 def summary(rows):
-    cohort=[r for r in rows if r['enrolled']]
+    cohort=[r for r in rows if r['enrolled'] or (r.get('sequence_mode')=='Main + one follow-up' and (r['qualified'] or r['initial_sent']))]
     sent=[r for r in cohort if r['initial_sent']]
     def reached(r,outcome):return any(e.get('outcome')==outcome for e in r['events'])
     counts={name:sum(reached(r,name) for r in sent) for name in OUTCOMES[1:]}
@@ -231,7 +232,7 @@ class ClientWorkflow:
                    'Acquisition Events':{'rich_text':rich(json.dumps(events))},'Acquisition Minutes':{'number':r['minutes']+minutes}}
         elif action in ('followup_draft','followup_review','followup_approve','followup_hold','followup_record_sent'):
             stage=payload.get('stage')
-            if type(stage) is not int or stage not in (1,2):raise ValueError('Choose follow-up 1 or 2')
+            if type(stage) is not int or stage not in ((1,2) if action=='followup_record_sent' else (1,)):raise ValueError('Only one no-reply follow-up is supported')
             prefix='Follow-up '+str(stage);f=r['followups'][stage-1]
             if stopped(p):raise ValueError('A reply, stop state or unresolved delivery holds follow-ups')
             if f['receipt'] or f['review'] in ('Sent','Sent manually'):raise ValueError('Preserve this recorded follow-up; never prepare it as a new send')
@@ -244,6 +245,9 @@ class ClientWorkflow:
                     ('Following up on my freelance email design enquiry. I can support Figma layouts and Klaviyo production using your client guidelines.' if stage==1 else
                      'One final follow-up on freelance email design support. If you use freelance production support, I would be happy to discuss a small paid test. If the timing is not suitable, no problem.')+
                     '\n\nPortfolio: '+portfolio+'\n\nWould discussing a small paid test be useful?\n\n'+self.profile.get('email_signature','Shine'))
+            if action=='followup_draft':
+                from .portfolio_message import linked_portfolio
+                body=linked_portfolio(body)
             if not isinstance(body,str) or not 80<=len(body)<=5000:raise ValueError('Follow-up draft must be 80–5000 characters')
             if portfolio_name_issue(body):raise ValueError(portfolio_name_issue(body))
             if portfolio not in body:raise ValueError('Keep the exact portfolio URL in the follow-up')
@@ -278,7 +282,7 @@ class ClientWorkflow:
             else:state={'followup_draft':'Draft','followup_review':'Reviewed','followup_approve':'Approve','followup_hold':'Held'}[action]
             zone=selected(p,'Company Time Zone')
             base=date(p,'sent time') if stage==1 else date(p,'Follow-up 1 Sent Time')
-            due=due_after(base,5 if stage==1 else 7,zone) if base and zone else None
+            due=due_after(base,2,zone) if base and zone else None
             props.update({prefix+' Draft':{'rich_text':rich(body)},prefix+' Review':{'select':{'name':state}},
                           prefix+' Due':{'date':{'start':due}} if due else {'date':None},
                           prefix+' Delivery':{'rich_text':rich('Manually reported sent; no automatic send performed' if state=='Sent manually' else ('Individually approved delivery; final checks apply. ' if state=='Approve' else 'Separate approval required for delivery. ')+('Awaiting initial/previous receipt.' if not due else 'Review date only; not a scheduled send.'))}})

@@ -173,11 +173,15 @@ def import_batch(store,session,items,prefs,profile,exclusions):
             lead['industry_label']=INDUSTRIES.get(lead['industry'],{}).get('name',lead['industry'])
             lead['target_reasons']=target_check(lead)
             lead.update(assess(lead,prefs,exclusions))
+            from .simple_workflow import automatic_quote,apply_quote
+            label,reason=automatic_quote(lead.get('source_documents',[]))
+            lead.update(design_quote=label,pricing_reason=reason)
             draft=raw.get('draft')
             draft_error=None
             if draft and lead['status'] not in ('Closed','Do Not Contact'):
                 try:
                     if not isinstance(draft,dict):raise ValueError('Draft must be an object')
+                    draft=dict(draft,body=apply_quote(draft.get('body',''),label))
                     lead['draft']=validate_draft(dict(draft,lead_id=lead['id']),lead,profile)
                     lead.update(status='Draft',draft_dirty=True)
                 except (ValueError,TypeError,KeyError,AttributeError) as exc:

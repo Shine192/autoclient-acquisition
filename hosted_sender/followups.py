@@ -16,7 +16,7 @@ def enabled(worker):
 
 
 def prepare(worker, parent, stage, expected=None):
-    if not enabled(worker) or stage not in (1, 2):raise ValueError('Reviewed follow-ups are disabled')
+    if not enabled(worker) or stage!=1:raise ValueError('Reviewed follow-ups are disabled')
     if parent.get('stage',0)!=0 or parent['state']!='sent' or parent.get('reply_reason') or parent.get('notion_sync_pending'):
         raise ValueError('A resolved initial receipt without replies is required')
     seed=worker.q.db.get('lead_'+parent['lead_id'])['data']
@@ -24,11 +24,19 @@ def prepare(worker, parent, stage, expected=None):
     prefix='Follow-up '+str(stage)
     if page.get('archived') or page.get('in_trash') or stopped(p):raise ValueError('Reply, stop or unresolved delivery blocks follow-up')
     if (p.get('STATUS',{}).get('status') or {}).get('name')!='Sent':raise ValueError('Initial message must remain Sent')
-    if selected(p,prefix+' Review')!='Approve':raise ValueError('Approve this follow-up separately')
+    from acquisition_agent.simple_workflow import snapshot
+    sequence=parent.get('sequence')
+    body=text(p,prefix+' Draft')
+    if sequence:
+        if snapshot(p)!=sequence:raise ValueError('Approved sequence changed; renew review')
+        if selected(p,prefix+' Review') in ('Held','Cancelled'):raise ValueError('Follow-up is held or cancelled')
+        fingerprint=digest([sequence['hash'],stage])
+    else:
+        if selected(p,prefix+' Review')!='Approve':raise ValueError('Approve this follow-up separately')
+        fingerprint=source_fingerprint(p,body,stage)
+        approval=parsed(p,'Follow-up Review Log',{}).get(str(stage),{})
+        if approval.get('state')!='Approve' or approval.get('sha256')!=fingerprint:raise ValueError('Follow-up changed; renew its approval')
     if text(p,prefix+' Receipt'):raise ValueError('Follow-up already has a receipt')
-    body=text(p,prefix+' Draft');fingerprint=source_fingerprint(p,body,stage)
-    approval=parsed(p,'Follow-up Review Log',{}).get(str(stage),{})
-    if approval.get('state')!='Approve' or approval.get('sha256')!=fingerprint:raise ValueError('Follow-up changed; renew its approval')
     if expected and expected['review_hash']!=fingerprint:raise ValueError('Follow-up approval changed after queueing')
     if text(p,'Gmail Message ID')!=parent['gmail_id'] or text(p,'Gmail Thread ID')!=parent['thread_id']:
         raise ValueError('Initial receipt or conversation changed')
@@ -57,7 +65,7 @@ def prepare(worker, parent, stage, expected=None):
         if not previous or previous['state']!='sent' or previous.get('reply_reason') or previous.get('notion_sync_pending'):
             raise ValueError('First follow-up needs a verified saved receipt')
         if text(p,'Follow-up 1 Receipt')!=previous['gmail_id']:raise ValueError('First follow-up receipt changed')
-    due=due_after(datetime.fromtimestamp(previous['attempted_at'],timezone.utc).isoformat(),5 if stage==1 else 7,lead['company_time_zone'])
+    due=due_after(datetime.fromtimestamp(previous['attempted_at'],timezone.utc).isoformat(),2,lead['company_time_zone'])
     message=worker.gmail.message(previous['gmail_id'])
     headers={h['name'].lower():h['value'] for h in message.get('payload',{}).get('headers',[])}
     reference=headers.get('message-id','')
@@ -82,7 +90,7 @@ def enqueue(worker):
     if not enabled(worker):return
     for parent in worker.q.db.list('outbox'):
         if parent.get('stage',0) or parent['state']!='sent' or parent.get('mode')=='test':continue
-        for stage in (1,2):
+        for stage in (1,):
             key=digest([parent['id'],'followup',stage])[:32]
             if worker.q.db.get('outbox_'+key):continue
             try:lead,draft,fp,due,reference=prepare(worker,parent,stage)
@@ -91,7 +99,7 @@ def enqueue(worker):
                 if not seed:continue
                 page=worker.notion.request('pages/'+seed['data']['notion_page_id'],'GET')
                 prefix='Follow-up '+str(stage)
-                if selected(page['properties'],prefix+' Review')=='Approve':
+                if parent.get('sequence') or selected(page['properties'],prefix+' Review')=='Approve':
                     worker.notion.request('pages/'+page['id'],'PATCH',{'properties':{
                         prefix+' Review':{'select':{'name':'Held'}},prefix+' Delivery':{'rich_text':rich('Held: '+str(exc)[:400])}}})
                 continue
