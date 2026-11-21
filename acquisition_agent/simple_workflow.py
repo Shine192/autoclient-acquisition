@@ -14,7 +14,8 @@ def automatic_quote(documents):
     return DEFAULT_QUOTE,'Employee count unknown. Conservative offered quote USD 25–30/email; no headcount or client budget inferred.'
 
 def followup_body(company,signature='Shine'):
-    return ('Hi '+company+' team,\n\nFollowing up on my freelance email design enquiry. I would be happy to discuss a small paid test if you need Figma design or Klaviyo production support. If the timing is not right, no problem.\n\n[View my portfolio]('+OUTREACH_PORTFOLIO+')\n\nThank you,\n'+signature)
+    from .outreach_copy import followup
+    return followup(company,signature if '\n' in signature else 'Thank you,\n'+signature,OUTREACH_PORTFOLIO)
 
 def reply_body():
     return ('Thank you for your reply. Could you share the email design or Klaviyo scope, supplied copy/assets, and preferred timing? I can review the requirements and confirm pricing and availability before we agree on any work.\n\nShine')
@@ -23,7 +24,7 @@ def properties(lead,profile):
     from .providers import rich
     if not lead.get('draft'):return {}
     return {'Sequence Mode':{'select':{'name':MODE}},
-            'Follow-up 1 Draft':{'rich_text':rich(followup_body(lead.get('company',''),profile.get('preferred_name','Shine')))},
+            'Follow-up 1 Draft':{'rich_text':rich(followup_body(lead.get('company',''),profile.get('email_signature') or profile.get('preferred_name','Shine')))},
             'Follow-up 1 Review':{'select':{'name':'Draft'}},
             'Follow-up 1 Delivery':{'rich_text':rich('Included in your initial sequence review. Sends once after two company-local business days, only without a reply.')},
             'Reply Draft':{'rich_text':rich(reply_body())},

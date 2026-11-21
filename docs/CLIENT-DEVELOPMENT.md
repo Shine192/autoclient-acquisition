@@ -63,3 +63,7 @@ This release implements the one-approval workflow for prepared sequence records.
 Existing sent records retain their original authorization and history; they do not
 silently gain a sequence approval. Restart the updated Mac dashboard before new
 AI research. Local sending remains draft-only while GitHub owns delivery.
+
+## Writing strategy
+
+Manual and automatic AI drafts share the [honest outreach strategy](OUTREACH-COPY-STRATEGY.md). Review factual relevance, contribution, selected price, portfolio and one interest question. No extra review step is added. The one follow-up adds practical paid-test scope; automatic replies remain disabled.
