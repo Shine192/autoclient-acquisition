@@ -241,10 +241,8 @@ class ClientWorkflow:
             from .commercial import profile_for_lead
             checked_profile=profile_for_lead({'portfolio_url':portfolio},self.profile)
             if action=='followup_draft' and not body:
-                body=('Hi '+r['company']+' team,\n\n'+
-                    ('Following up on my freelance email design enquiry. I can support Figma layouts and Klaviyo production using your client guidelines.' if stage==1 else
-                     'One final follow-up on freelance email design support. If you use freelance production support, I would be happy to discuss a small paid test. If the timing is not suitable, no problem.')+
-                    '\n\nPortfolio: '+portfolio+'\n\nWould discussing a small paid test be useful?\n\n'+self.profile.get('email_signature','Shine'))
+                from .outreach_copy import followup
+                body=followup(r['company'],self.profile.get('email_signature','Shine'),portfolio)
             if action=='followup_draft':
                 from .portfolio_message import linked_portfolio
                 body=linked_portfolio(body)
