@@ -19,7 +19,7 @@ EXPERIMENT = {'name':'Agency freelance support — first 40', 'target':40, 'week
               'review_minutes_per_day':10, 'new_prospect_reviews_per_day':2, 'size_preference':[2,50],
               'regions':{'Australia':10,'UK':10,'Dubai':10,'EU':10},
               'specialty':'Klaviyo/email marketing for e-commerce clients',
-              'followup_business_days':[5,7], 'automatic_followups_enabled':False}
+              'followup_business_days':[2], 'automatic_followups_enabled':False}
 
 
 def quote_range(label):
@@ -32,6 +32,7 @@ def quote_instruction(label=DEFAULT_QUOTE):
     return ('Figma design is USD '+str(values[0])+'–'+str(values[1])+' per email. '
             'This is the offered quote, not the client budget. Klaviyo building is quoted separately. '
             'Paid test scope: '+PAID_TEST_SCOPE+' '
+            'Use [View my portfolio]('+OUTREACH_PORTFOLIO+') for the website portfolio link when that is the selected URL. '
             'Never name previous portfolio clients in an email; use the portfolio link only.')
 
 

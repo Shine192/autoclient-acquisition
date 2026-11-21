@@ -23,6 +23,7 @@ def prepare(store, notion, lead, config, profile, prefs, exclusions):
                '\nOffer: ' + config['offers']['paid_test']['scope'] +
                '\nFinal step: review the recipient, message and contact purpose; set STATUS to Approve. ' +
                'Use Needs Review to hold or Do Not Contact to stop. ' +
+               'Approval covers the visible initial email plus ONE no-reply follow-up after two business days. Any reply stops it; the reply draft stays for your review. '
                'Approval does not confirm a vacancy, client interest or work authorization.')
     if config.get('delivery_backend')=='github':
         summary += '\nDelivery: GitHub monitors STATUS=Approve. The Mac can sleep after sync. Company-local windows and daily limits apply.'
@@ -33,6 +34,10 @@ def prepare(store, notion, lead, config, profile, prefs, exclusions):
              'Match Score': {'number': result['score']},
              'Research Notes': {'rich_text': rich(research_notes(facts))},
              'Contact Source URL': {'url': facts.get('contact_source_url') or None}}
+    from .simple_workflow import properties
+    sequence_page=notion.request('pages/'+facts['notion_page_id'],'GET')
+    if not sequence_page['properties'].get('Sequence Mode',{}).get('select'):
+        props.update(properties(facts,profile))
     if facts.get('email'):
         props['EMAIL'] = {'email': facts['email']}
     if facts.get('company_time_zone_verified') and facts.get('company_time_zone_source'):

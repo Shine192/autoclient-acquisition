@@ -129,7 +129,8 @@ class Gmail:
         if reply_to:
             message['In-Reply-To'] = reply_to
             message['References'] = reply_to
-        message.set_content(body)
+        from .portfolio_message import set_message_content
+        set_message_content(message,body)
         data = {'raw': base64.urlsafe_b64encode(message.as_bytes()).decode()}
         if thread_id:
             data['threadId'] = thread_id

@@ -174,9 +174,9 @@ class WorkflowTests(unittest.TestCase):
             self.assertEqual(record(self.n.page)['followups'][0]['review'],'Cancelled')
             with self.assertRaisesRegex(ValueError,'holds follow-ups'):self.action('followup_review',stage=1)
 
-    def test_second_followup_waits_for_first_actual_receipt(self):
-        self.sent();self.action('followup_draft',stage=2)
-        with self.assertRaisesRegex(ValueError,'first follow-up receipt'):self.action('followup_review',stage=2)
+    def test_second_followup_cannot_be_prepared(self):
+        self.sent()
+        with self.assertRaisesRegex(ValueError,'Only one'):self.action('followup_draft',stage=2)
 
     def test_new_outcomes_require_order_receipt_and_nonautomated_reply(self):
         with self.assertRaisesRegex(ValueError,'receipt'):self.action('result',outcome='Positive reply',reply_classification='Positive',request_id='request-1')
@@ -209,13 +209,7 @@ class WorkflowTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'already belongs'):
             self.action('followup_record_sent',stage=1,receipt='gmail-receipt-123',sent_time='2026-11-10T00:00:00+00:00')
         self.action('followup_record_sent',stage=1,receipt='first-followup-receipt',sent_time='2026-11-10T00:00:00+00:00')
-        self.action('followup_draft',stage=2);self.action('followup_review',stage=2)
-        with self.assertRaisesRegex(ValueError,'precede the first'):
-            self.action('followup_record_sent',stage=2,receipt='second-followup-receipt',sent_time='2026-11-09T00:00:00+00:00')
-        with self.assertRaisesRegex(ValueError,'already belongs'):
-            self.action('followup_record_sent',stage=2,receipt='first-followup-receipt',sent_time='2026-11-17T00:00:00+00:00')
-        result=self.action('followup_record_sent',stage=2,receipt='second-followup-receipt',sent_time='2026-11-17T00:00:00+00:00')
-        self.assertEqual(result['rows'][0]['followups'][1]['review'],'Sent manually')
+        with self.assertRaisesRegex(ValueError,'Only one'):self.action('followup_draft',stage=2)
 
     def test_automated_responses_and_missing_denominators_do_not_inflate_results(self):
         r=record(self.n.page);r.update(enrolled=True,initial_sent=True,reply_classification='Automated',events=[])

@@ -170,7 +170,8 @@ class GmailPassword:
         if reply_to:
             message['In-Reply-To'] = reply_to
             message['References'] = reply_to
-        message.set_content(body)
+        from .portfolio_message import set_message_content
+        set_message_content(message,body)
         with smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=30,
                               context=ssl.create_default_context()) as client:
             client.login(self.sender, self.password)
