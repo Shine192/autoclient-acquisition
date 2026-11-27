@@ -7,19 +7,25 @@ PORTFOLIO_INTRO = "You can review my recent work and learn more about my service
 STRATEGY=(
     'COLD EMAIL COPY STRATEGY: Use an honest, helpful, professional tone. '
     'Aim for 90–130 words before the signature, with short paragraphs; clarity matters more than exact length. '
-    'Structure: one verified observation → relevant Figma/Klaviyo contribution → portfolio → selected offered price → one interest-based question. '
+    'Structure: one verified observation → relevant Figma/Klaviyo contribution → portfolio → selected offered price → one low-pressure reply invitation. '
+    'Explain the relevant contribution within the first two sentences. Use 3–5 short paragraphs where practical; avoid dense lists. '
     'For agency introductions, prioritise Klaviyo/email/retention agencies serving e-commerce; offer support from their client briefs and brand guidelines. '
     'Use one specific sourced service, project or case study to explain why you chose them; no generic praise or personal trivia. '
+    'Connect that observation to a useful deliverable, such as a mobile layout or reusable design blocks, without claiming their current design is faulty. '
     'Service fit is not evidence of hiring, purchasing intent, budget or an overloaded team. '
     'Do not diagnose weak emails, missing flows, lost revenue or capacity problems without evidence. '
     'Describe desktop/mobile layouts and editable Klaviyo blocks; use only verified contributions, never invented results. '
+    'Relevant portfolio work is proof of design contribution, not proof of revenue or conversion lift. Do not name clients, quote testimonials or reuse metrics unless the supplied profile verifies both the contribution and permission to share. '
     'Offer one small paid Figma test from client-supplied copy/assets, with scope and timing agreed before starting. Klaviyo is separately quoted. '
     'Use a clear subject such as Freelance email design support; never fake Re:/Fwd:, urgency, familiarity or an earlier conversation. '
+    'Prefer a specific 3–6 word subject; avoid ambiguous hooks such as Quick question or Got something for you. '
     'End with ONE low-pressure invitation: '+PAID_TEST+' Do not add another question or ask for a calendar booking in the first touch. '
     'Use the selected quote; company size chooses an offered range, not a claim about client budget. '
     'Introduce the portfolio with: '+PORTFOLIO_INTRO+'[View my portfolio](the exact selected portfolio URL). '
     'Posted jobs follow the real application requirements and route; unsolicited HR work enquiries must remain work enquiries, never sales pitches or advertised vacancies. '
     'A follow-up adds a practical scope detail rather than repeating the first email. One follow-up only after two business days; any reply stops it. '
+    'Never add extra follow-ups, automatic warm-up conversations, tracking pixels, link shorteners, attachments or multiple company contacts. '
+    'No response-rate guarantees or revenue promises. Treat tests as learning from genuine replies and paid work, not opens. '
     'Reply drafts are review-only. Do not promise availability, delivery dates or negotiate terms automatically.'
 )
 
@@ -58,7 +64,7 @@ def refreshed_intro(lead,profile):
     offer=('I could support your client projects with Figma campaign and flow designs, following your briefs and brand guidelines.' if agency else
            'I could help prepare campaign and flow designs using your supplied copy, assets, and brand guidelines.')
     body=('Hi '+lead['company']+' team,\n\n'+first+' '+offer+'\n\n'
-          'I’m '+profile.get('preferred_name','Shine')+', an email designer based in Thailand. I create desktop and mobile layouts and can build approved designs in Klaviyo with editable, reusable blocks.\n\n'
+          'I’m '+profile.get('preferred_name','Shine')+', an email designer based in Thailand. I create desktop and mobile layouts and can build approved designs in Klaviyo with editable, reusable blocks. '
           +PORTFOLIO_INTRO+'[View my portfolio]('+OUTREACH_PORTFOLIO+')\n\n'
           'My Figma design quote is USD '+str(low)+'–'+str(high)+' per email, depending on scope. Klaviyo implementation is quoted separately.\n\n'
           +PAID_TEST+'\n\n'+profile.get('email_signature','Thank you,\nShine'))

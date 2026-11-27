@@ -76,6 +76,15 @@ class NotionReviewTests(unittest.TestCase):
         self.assertEqual(d.rows(self.store),[])
         self.gmail.send.assert_not_called()
 
+    def test_review_summary_explains_relevance_without_claiming_buyer_intent(self):
+        from acquisition_agent.providers import text_value
+        self.prepare()
+        summary=text_value(self.n.props['Review Summary'])
+        self.assertIn('Personalization basis:',summary)
+        self.assertIn('Relevant offer:',summary)
+        self.assertIn('budget and workload are unknown',summary)
+        self.assertEqual(self.n.props['STATUS']['status']['name'],'Draft')
+
     def test_single_notion_status_queues_once_without_legacy_checkboxes(self):
         result=self.approve()
         self.assertEqual(result[0]['state'],'queued')

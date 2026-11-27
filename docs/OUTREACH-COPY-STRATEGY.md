@@ -37,6 +37,58 @@ Measure genuine positive replies, paid tests, repeat clients and acquisition
 minutes against explicit denominator counts. Compare audiences and offered
 quotes; test one variable at a time and treat small samples as directional.
 
-463 local tests pass, including eight copy-strategy regressions. No outreach or
-approval was performed. The owner approved this strategy release;
-Notion draft revisions are already applied with originals backed up.
+## Research and learning update — November 27, 2026
+
+Automatic research now reads the discovered page, then prefers actual official
+contact and email/Klaviyo/service/project links over assumed `/contact` and
+`/about` paths. It still reads at most three pages per company. Navigation is
+cached with visible source text for 24 hours; existing research allowances,
+robots checks, public-network restrictions and company suppression still apply.
+If the original source cannot be read, it is skipped without a paid AI request.
+Manual research briefs use the same evidence-first priorities.
+
+Establish relevant services/products and an appropriate published organizational
+contact route before writing. Finder databases and LinkedIn are discovery clues,
+not substitutes for official contact evidence, and a listing never guarantees
+deliverability or interest. Missing facts stay unknown. Never infer that an
+agency is overloaded or hiring from its services, location or employee count.
+Notion review summaries show the short verified personalization quotation, the
+relevant offer and this distinction alongside the existing checks.
+
+State the useful contribution within the first two sentences. Prefer a clear
+3–6 word subject and 3–5 short paragraphs, with one relevant observation and
+one paid-test invitation. These are writing aims, not additional sending gates.
+Use design evidence rather than unsupported conversion/revenue claims. Preserve
+the owner's exact portfolio introduction and paid-test invitation. Portfolio
+clients, testimonials or results require supplied evidence and permission.
+
+The supplied articles inform these choices; their reported results are not
+benchmarks for this business. The first article's “30/30/50” percentages total
+110%, so they are not a usable allocation. The multi-sender article gives both
+80 and 100 daily limits and promotes a warm-up product; neither number proves
+inbox placement. We do not adopt artificial engagement, new domains, extra
+company contacts, ambiguous subjects, or three/four-follow-up sequences.
+
+Delivery remains one approved main/follow-up pair, one no-reply follow-up after
+two company-local business days, reply-stop and review-only response drafts,
+50 messages globally per day with existing spacing and windows. The cap is a
+ceiling, not a target or deliverability guarantee. Approved, queued, sent and
+replied records are not rewritten by this update. Existing Notion entries gain
+the new review explanation only when their normal eligible preparation runs;
+saved email pairs are preserved until deliberately revised and reviewed.
+
+For learning, compare small, consistent audience cohorts; change one writing
+variable per cohort. Count first messages, actual human replies, positive
+replies, paid tests, repeat clients and acquisition time. Exclude automatic
+replies from human response rates. Report numerator, denominator and observation
+period; small samples are directional, not proof. Provider acceptance is not
+inbox placement, and opens are not the success measure. Existing outcome
+tracking remains in use; this release adds no tracking pixels or auto-labeling
+of sales outcomes.
+
+Google's official [sender guidelines](https://support.google.com/a/answer/81126)
+(checked November 27, 2026) require SPF or DKIM for all senders to personal Gmail
+and recommend SPF, DKIM and DMARC. They also emphasize accurate subjects,
+visible links, consistent sending and reputation. Bulk requirements differ.
+Authentication and inbox placement for this installation have not been tested
+by this writing/research update; DNS and sender identities are not modified.
