@@ -2,6 +2,7 @@
 import json
 import re
 import uuid
+from .outreach_copy import PAID_TEST
 from .core import now, normalize, canonical_url, hostname, excluded, prepare_lead, assess, draft_prompt, validate_draft
 
 INDUSTRIES = {
@@ -23,8 +24,6 @@ INDUSTRIES.update({'candles_fragrance': {'name': 'Candles & Home Fragrance', 'gr
 # Restaurants may describe their own premises as an eatery rather than a cafe.
 # Exact source, selected-industry and location checks still apply.
 INDUSTRIES['restaurants_cafes']['terms'].extend(['eatery', 'eateries'])
-
-PAID_TEST = "I’d be happy to start with a small paid test project, with no commitment to ongoing work. If you’re interested, just reply to this email and we can discuss the scope. Thank you!"
 
 
 def validate_spec(payload, prefs):

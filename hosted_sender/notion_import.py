@@ -1,5 +1,5 @@
 """Read Notion research as data; only the actual STATUS property can approve."""
-import json,re,tempfile,time
+import json,re,tempfile,time,os
 from acquisition_agent import notion_compat,delivery
 from acquisition_agent.providers import text_value,rich
 from .queue import digest
@@ -47,7 +47,7 @@ def read_lead(page,preferences):
 
 def refresh(queue,notion,settings,campaign_id=None):
     pages=list(notion.query(settings['preferences']['notion_leads_source_id']))
-    keys={};contacts={};invalid=set();output={'imported':0,'held':0,'queued':0}
+    keys={};contacts={};invalid=set();output={'imported':0,'held':0,'queued':0};diagnostics=[]
     approval_mode=queue.control().get('delivery_model')=='notion-approval'
     for p in pages:
         key=value(p['properties'],'Deduplication Key')
@@ -70,6 +70,8 @@ def refresh(queue,notion,settings,campaign_id=None):
         queue.db.transaction(reset)
     for key,page in keys.items():
         props=page['properties'];status=(props.get('STATUS',{}).get('status') or {}).get('name')
+        if ((props.get('Research Check',{}).get('select') or {}).get('name')=='Ready for review' and not value(props,'Error')) or status in ('Sent','Replied','Interview','Won'):
+            diagnostics.append(('approval',key,[],{'page_id':page['id']}))
         known=queue.db.get('lead_'+key)
         if known and known['data'].get('notion_page_id')!=page['id']:
             def relink(tx):
@@ -93,6 +95,7 @@ def refresh(queue,notion,settings,campaign_id=None):
                 invalid.add(key)
                 output['held']+=1
                 reason='Complete structured research is missing. Repair and sync from the Mac dashboard.'
+                diagnostics.append(('approval',key,[reason],{'page_id':page['id']}))
                 notion.request('pages/'+page['id'],'PATCH',{'properties':{
                     'Delivery State':{'rich_text':rich('Approved but blocked:\n- '+reason)},
                     'Error':{'rich_text':rich(reason)},
@@ -123,15 +126,18 @@ def refresh(queue,notion,settings,campaign_id=None):
                         store.db.close()
                 if issues:
                     output['held'] += 1
+                    diagnostics.append(('approval',key,issues,{'page_id':page['id']}))
                     notion.request('pages/'+page['id'],'PATCH',{'properties':{
                         'Delivery State':{'rich_text':rich(message(issues))},
                         'Error':{'rich_text':rich('\n'.join(issues))},
                         'Research Check':{'select':{'name':'Needs information'}}}})
                     continue
                 item=worker.enqueue(key,campaign_id)
+                diagnostics.append(('approval',key,[],{'page_id':page['id']}))
                 if item['state']=='queued':output['queued']+=1
             except (ValueError,KeyError,TypeError) as exc:
                 output['held']+=1
+                diagnostics.append(('approval',key,[exc],{'page_id':page['id']}))
                 notion.request('pages/'+page['id'],'PATCH',{'properties':{
                     'Delivery State':{'rich_text':rich('Approved but blocked:\n- '+str(exc))},
                     'Error':{'rich_text':rich(str(exc))}}})
@@ -142,4 +148,6 @@ def refresh(queue,notion,settings,campaign_id=None):
             'approved':sum((p['properties'].get('STATUS',{}).get('status') or {}).get('name')=='Approve' for p in pages),
             'blocked':output['held'],'queued':output['queued']})
     queue.db.transaction(remember_review)
+    from acquisition_agent.incidents import cloud_batch
+    cloud_batch(queue.db,diagnostics,observation=os.getenv('GITHUB_RUN_ID') or str(time.time()),run_id=os.getenv('GITHUB_RUN_ID'))
     return output

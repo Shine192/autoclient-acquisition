@@ -55,6 +55,42 @@ class PanelTests(unittest.TestCase):
     def test_anonymous_state_is_not_readable(self):
         self.assertEqual(self.request('/api/state',authorized=False)[0],401)
 
+    def test_error_center_is_private_and_does_not_fetch_sources_on_get(self):
+        from unittest.mock import patch
+        self.assertEqual(self.request('/api/error-center',authorized=False)[0],401)
+        with patch('acquisition_agent.error_center.refresh') as refresh:
+            code,_,raw=self.request('/api/error-center')
+            self.assertEqual(code,200);self.assertEqual(json.loads(raw)['counts']['open'],0)
+            refresh.assert_not_called()
+
+    def test_error_center_refresh_requires_existing_session_protection(self):
+        self.assertEqual(self.request('/api/error-center/refresh',{},authorized=False)[0],403)
+        self.assertEqual(self.request('/api/error-center/refresh',{},headers={'X-CSRF-Token':'wrong'})[0],403)
+
+    def test_error_center_refresh_never_sends_or_changes_policy(self):
+        from unittest.mock import patch
+        before=(self.root/'config/sending.json').read_bytes()
+        with patch.dict('os.environ',{'NOTION_TOKEN':''}),patch('acquisition_agent.gmail.Gmail.send') as send:
+            code,_,raw=self.request('/api/error-center/refresh',{})
+            self.assertEqual(code,200,raw);send.assert_not_called()
+            self.assertEqual(json.loads(raw)['sources']['cloud']['state'],'not_connected')
+        self.assertEqual((self.root/'config/sending.json').read_bytes(),before)
+
+    def test_error_center_reports_a_saved_failure_without_raw_exception_text(self):
+        from acquisition_agent.incidents import record
+        store=open_store(self.state)
+        record(store,'sending','worker',[TimeoutError('PRIVATE_TOKEN timeout')],observation='attempt')
+        store.db.close()
+        code,_,raw=self.request('/api/error-center')
+        self.assertEqual(code,200);self.assertEqual(json.loads(raw)['counts']['urgent'],1)
+        self.assertNotIn('PRIVATE_TOKEN',raw)
+
+    def test_error_center_script_and_navigation_are_served_with_same_security(self):
+        code,headers,script=self.request('/errors.js')
+        self.assertEqual(code,200);self.assertIn("script-src 'self'",headers['Content-Security-Policy'])
+        self.assertIn('Easiest next step',script);self.assertNotIn('innerHTML',script)
+        self.assertIn('data-view="errors"',self.request('/')[2])
+
     def test_bootstrap_sets_private_cookie_redirects_without_key(self):
         code,headers,_=self.request('/?key='+self.panel.key,authorized=False)
         self.assertEqual(code,303);self.assertEqual(headers['Location'],'/')

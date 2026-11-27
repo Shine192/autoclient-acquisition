@@ -1,6 +1,9 @@
 """Shared honest, helpful copy guidance; research and recipient gates remain separate."""
 import re
 
+PAID_TEST = "If this fits your needs, feel free to reply and we can discuss a small paid test email, with no commitment to ongoing work."
+PORTFOLIO_INTRO = "You can review my recent work and learn more about my services here: "
+
 STRATEGY=(
     'COLD EMAIL COPY STRATEGY: Use an honest, helpful, professional tone. '
     'Aim for 90–130 words before the signature, with short paragraphs; clarity matters more than exact length. '
@@ -12,9 +15,9 @@ STRATEGY=(
     'Describe desktop/mobile layouts and editable Klaviyo blocks; use only verified contributions, never invented results. '
     'Offer one small paid Figma test from client-supplied copy/assets, with scope and timing agreed before starting. Klaviyo is separately quoted. '
     'Use a clear subject such as Freelance email design support; never fake Re:/Fwd:, urgency, familiarity or an earlier conversation. '
-    'End with ONE easy interest question, for example Would you be open to discussing one small paid test? Do not ask for a calendar booking in the first touch. '
+    'End with ONE low-pressure invitation: '+PAID_TEST+' Do not add another question or ask for a calendar booking in the first touch. '
     'Use the selected quote; company size chooses an offered range, not a claim about client budget. '
-    'Use [View my portfolio](the exact selected portfolio URL). '
+    'Introduce the portfolio with: '+PORTFOLIO_INTRO+'[View my portfolio](the exact selected portfolio URL). '
     'Posted jobs follow the real application requirements and route; unsolicited HR work enquiries must remain work enquiries, never sales pitches or advertised vacancies. '
     'A follow-up adds a practical scope detail rather than repeating the first email. One follow-up only after two business days; any reply stops it. '
     'Reply drafts are review-only. Do not promise availability, delivery dates or negotiate terms automatically.'
@@ -25,8 +28,8 @@ def followup(company,signature,portfolio):
     return ('Hi '+company+' team,\n\nFollowing up on my email about freelance email design support.\n\n'
             'For one small paid test, I can work from your supplied copy, assets, and brand guidelines to prepare a Figma email with desktop and mobile layouts. '
             'Scope and timing would be agreed before starting. Klaviyo implementation is quoted separately.\n\n'
-            '[View my portfolio]('+portfolio+')\n\n'
-            'Would this be relevant for your team? If the timing is not right, no problem.\n\n'+signature)
+            +PORTFOLIO_INTRO+'[View my portfolio]('+portfolio+')\n\n'
+            +PAID_TEST+'\n\n'+signature)
 
 
 def observation(lead):
@@ -56,7 +59,7 @@ def refreshed_intro(lead,profile):
            'I could help prepare campaign and flow designs using your supplied copy, assets, and brand guidelines.')
     body=('Hi '+lead['company']+' team,\n\n'+first+' '+offer+'\n\n'
           'I’m '+profile.get('preferred_name','Shine')+', an email designer based in Thailand. I create desktop and mobile layouts and can build approved designs in Klaviyo with editable, reusable blocks.\n\n'
-          '[View my portfolio]('+OUTREACH_PORTFOLIO+')\n\n'
+          +PORTFOLIO_INTRO+'[View my portfolio]('+OUTREACH_PORTFOLIO+')\n\n'
           'My Figma design quote is USD '+str(low)+'–'+str(high)+' per email, depending on scope. Klaviyo implementation is quoted separately.\n\n'
-          'Would you be open to discussing one small paid test?\n\n'+profile.get('email_signature','Thank you,\nShine'))
+          +PAID_TEST+'\n\n'+profile.get('email_signature','Thank you,\nShine'))
     return dict(lead['draft'],subject='Freelance email design support',body=body)

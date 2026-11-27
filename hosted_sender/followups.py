@@ -100,6 +100,11 @@ def enqueue(worker):
                 page=worker.notion.request('pages/'+seed['data']['notion_page_id'],'GET')
                 prefix='Follow-up '+str(stage)
                 if parent.get('sequence') or selected(page['properties'],prefix+' Review')=='Approve':
+                    from acquisition_agent.incidents import cloud_record
+                    import os,time
+                    # Reply/stop outcomes are expected safeguards, not bugs.
+                    if not re.search(r'without replies is required|Reply, stop|held or cancelled|Approve this follow-up separately',str(exc),re.I):
+                        cloud_record(worker.q.db,'followup',parent['lead_id'],[exc],observation=os.getenv('GITHUB_RUN_ID') or str(time.time()),run_id=os.getenv('GITHUB_RUN_ID'),page_id=page['id'])
                     worker.notion.request('pages/'+page['id'],'PATCH',{'properties':{
                         prefix+' Review':{'select':{'name':'Held'}},prefix+' Delivery':{'rich_text':rich('Held: '+str(exc)[:400])}}})
                 continue

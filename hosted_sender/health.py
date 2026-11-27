@@ -208,8 +208,10 @@ def emit(report):
 
 
 def monitored_run(queue, settings, operation, now=time.time):
-    started = now();phase = {'stage':'starting'}
-    def progress(stage):phase['stage'] = stage if stage in STAGES else 'starting'
+    started = now();phase = {'stage':'starting'};visited=set();incident_error=None
+    def progress(stage):
+        phase['stage'] = stage if stage in STAGES else 'starting'
+        visited.add(phase['stage'])
     before = sum(v['state']=='sent' and v.get('mode')!='test' for v in queue.db.list('outbox'))
     error = None;result = None
     try:
@@ -218,6 +220,7 @@ def monitored_run(queue, settings, operation, now=time.time):
         return result
     except Exception as exc:
         error = safe_error(exc)
+        incident_error=exc
         raise
     finally:
         completed = now()
@@ -234,7 +237,21 @@ def monitored_run(queue, settings, operation, now=time.time):
                 'confirmed_sends_this_run':max(0,report['confirmed_sent']-before),
                 'last_success_at':iso(completed) if outcome=='ok' else previous.get('last_success_at'),
                 'last_scheduled_success_at':iso(completed) if outcome=='ok' and event=='schedule' else previous.get('last_scheduled_success_at')}
-            queue.db.transaction(lambda tx:tx.put(KEY,record))
+            def persist(tx):
+                from acquisition_agent.incidents import observe
+                from acquisition_agent.error_center import step_for_stage
+                events=(tx.get('incident_history') or {}).get('events',[])
+                if incident_error is not None:
+                    events=observe(events,'cloud',step_for_stage(phase['stage']),'worker',[incident_error],observation=run_id or str(started),run_id=run_id,at=completed)
+                else:
+                    for stage in visited:
+                        events=observe(events,'cloud',step_for_stage(stage),'worker',[],observation=run_id or str(started),at=completed)
+                    if not report['outstanding_attempt'] and not report['uncertain']:
+                        for step in ('sending','receipts'):
+                            events=observe(events,'cloud',step,'worker',[],observation=run_id or str(started),at=completed)
+                tx.put('incident_history',{'kind':'incident_history','events':events})
+                tx.put(KEY,record)
+            queue.db.transaction(persist)
             report['last_worker_run']=record;emit(report)
             if outcome=='attention':print('::warning::Delivery health needs attention. Saved receipts must not be resent; pending Notion updates can be retried.')
         except Exception:

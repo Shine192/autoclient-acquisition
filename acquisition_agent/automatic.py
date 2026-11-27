@@ -276,4 +276,6 @@ def run(store, session, prefs, profile, exclusions, progress=lambda value:None, 
             update('Stopped')
         session.update(status=result['stage'],automatic_result=result)
         store.db.execute('UPDATE target_sessions SET data=? WHERE id=?',(json.dumps(session),session['id']));store.db.commit()
+    from .incidents import task_result
+    task_result(store,'automatic-research',session['id'],dict(result,session_id=session['id']),observation=session['id']+'-'+now())
     return result

@@ -1,5 +1,5 @@
 import unittest
-from acquisition_agent.outreach_copy import STRATEGY,observation,refreshed_intro,followup
+from acquisition_agent.outreach_copy import STRATEGY,PAID_TEST,PORTFOLIO_INTRO,observation,refreshed_intro,followup
 from acquisition_agent.commercial import OUTREACH_PORTFOLIO
 from acquisition_agent.core import draft_prompt
 from acquisition_agent.targeting import build_prompt
@@ -19,11 +19,11 @@ class OutreachCopyTests(unittest.TestCase):
  def test_selected_price_and_one_interest_question(self):
   for quote,range_text in [('USD 25–30/email','USD 25–30'),('USD 30–35/email','USD 30–35')]:
    result=refreshed_intro(dict(self.lead(),design_quote=quote),{'preferred_name':'Shine'})
-   self.assertIn(range_text,result['body']);self.assertIn(OUTREACH_PORTFOLIO,result['body']);self.assertEqual(result['body'].count('?'),1)
+   self.assertIn(range_text,result['body']);self.assertIn(OUTREACH_PORTFOLIO,result['body']);self.assertIn(PORTFOLIO_INTRO,result['body']);self.assertEqual(result['body'].count(PAID_TEST),1)
    self.assertNotIn('USD 20',result['body']);self.assertNotIn('overloaded',result['body'])
  def test_followup_adds_scope_without_a_date_or_revenue_promise(self):
   body=followup('Example','Shine',OUTREACH_PORTFOLIO)
-  self.assertIn('supplied copy',body);self.assertIn('agreed before starting',body);self.assertEqual(body.count('?'),1);self.assertNotIn('revenue',body)
+  self.assertIn('supplied copy',body);self.assertIn('agreed before starting',body);self.assertIn(PORTFOLIO_INTRO,body);self.assertEqual(body.count(PAID_TEST),1);self.assertNotIn('revenue',body)
  def test_shared_strategy_reaches_manual_and_research_prompts(self):
   profile={'portfolio_url':OUTREACH_PORTFOLIO}
   self.assertIn(STRATEGY,draft_prompt(self.lead(),profile,{}))
