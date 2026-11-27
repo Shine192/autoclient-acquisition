@@ -6,6 +6,7 @@ import os
 import tempfile
 import threading
 import unittest
+from urllib.parse import urlsplit
 from pathlib import Path
 from unittest.mock import patch
 import test_targeting
@@ -54,6 +55,17 @@ class AutomaticTests(unittest.TestCase):
         with patch.object(auto,'search') as search, self.assertRaisesRegex(ValueError,'already started'):
             auto.run(self.store,self.session,self.prefs,self.profile,self.exclusions)
         search.assert_not_called()
+
+    def test_published_navigation_is_used_and_cached_within_three_page_budget(self):
+        from acquisition_agent.prospect_research import ResearchText
+        from acquisition_agent.core import canonical_url
+        url=self.raw['url'];origin='https://'+urlsplit(url).netloc
+        links=[origin+'/contact-us',origin+'/services/email-design']
+        with patch.object(auto,'search',return_value=[{'url':url}]), patch.object(auto,'research',return_value=ResearchText(self.fixture.text,links)) as fetch, patch.object(auto,'api_json',return_value=self.response()):
+            result=auto.run(self.store,self.session,self.prefs,self.profile,self.exclusions)
+        self.assertEqual([call.args[0] for call in fetch.call_args_list],[url]+links)
+        self.assertEqual(result['pages_attempted'],3)
+        self.assertEqual(auto.cache_get(self.store,'page-v2:'+canonical_url(url),24)['links'],links)
 
     def test_fresh_session_skips_existing_company_and_uses_search_cache(self):
         self.pipeline()

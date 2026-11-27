@@ -47,7 +47,9 @@ def research(url):
     parser.parse(robots.splitlines())
     if not parser.can_fetch("ShineAcquisitionResearch", url):
         raise ValueError("Source disallows this research fetch")
-    return plain_text(fetch_text(url))
+    from .prospect_research import ResearchText, official_links
+    html = fetch_text(url)
+    return ResearchText(plain_text(html), official_links(html, url))
 
 
 def rss(url):

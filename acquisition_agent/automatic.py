@@ -216,16 +216,21 @@ def run(store, session, prefs, profile, exclusions, progress=lambda value:None, 
                 update('Searching')
             for url in candidates[:spec['limit']]:
                 check();documents=[];result['researched']+=1;update('Reading public sources')
-                origin=urlsplit(url).scheme+'://'+urlsplit(url).netloc
-                pages=list(dict.fromkeys([url,origin+'/contact',origin+'/about']))[:3]
+                from .prospect_research import supporting_pages
+                pages=[url]
                 for page in pages:
-                    check();key='page:'+canonical_url(page);text=cache_get(store,key,24)
-                    if text is None:
+                    check();key='page-v2:'+canonical_url(page);cached=cache_get(store,key,24)
+                    if cached is None:
                         result['pages_attempted']+=1
-                        try:text=research(page)[:9000]
+                        try:document=research(page)
                         except ValueError:
                             continue # Robots/HTTP/access failures are never bypassed.
-                        cache_put(store,key,text)
+                        # ResearchText is string-compatible; retain navigation before slicing.
+                        cached={'text':document[:9000],'links':list(getattr(document,'links',()))}
+                        cache_put(store,key,cached)
+                    text=cached['text']
+                    if page==url:
+                        pages.extend(supporting_pages(url,cached['links']))
                     if text:documents.append({'url':page,'text':text})
                 if not documents:
                     result['errors'].append({'source':url,'error':'No readable permitted public sources. No AI request made.'});continue

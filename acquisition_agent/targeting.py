@@ -65,6 +65,7 @@ def get_session(store,key):
 def build_prompt(spec,profile,prefs,exclusions):
     from .commercial import DEFAULT_QUOTE, drafting_profile, quote_instruction, audience_instruction
     from .outreach_copy import STRATEGY
+    from .prospect_research import RESEARCH_STRATEGY
     label=spec.get('design_quote') or DEFAULT_QUOTE
     profile=drafting_profile(profile,label)
     focuses=[INDUSTRIES[x] for x in spec['industries']]
@@ -88,7 +89,7 @@ def build_prompt(spec,profile,prefs,exclusions):
         'Leave missing contacts unset by omitting them from source text; record incomplete research honestly. Follow advertised application routes; never invent a vacancy. '+
         'Every evidence quote must be a continuous verbatim passage in source_text or source_documents text at that exact cited URL. Do not paraphrase, join separate sentences, or cite the homepage for text from another page. Check this before returning JSON. '+
         'Use source_text for the main page and up to three official source_documents for products, location and contacts. All documents must be on the same official company host. '+
-        STRATEGY+' For every candidate, use verified company details and supplied applicant facts. '+
+        RESEARCH_STRATEGY+' '+STRATEGY+' For every candidate, use verified company details and supplied applicant facts. '+
         'End the email with the exact applicant email_signature when supplied. Include the exact portfolio URL. No invented results, clients, certifications, audits or subscription claims. No guaranteed conversions, capacity/date commitments, or free work. '+
         quote_instruction(label)+' Use one low-pressure next step; vary the wording naturally. '+audience_instruction(spec)+
         'Industry design guidance is an idea for how Shine could help, NOT proof of a company problem. Never claim missing flows, poor emails or lost revenue without evidence. '+

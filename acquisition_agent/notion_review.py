@@ -29,6 +29,13 @@ def prepare(store, notion, lead, config, profile, prefs, exclusions):
         summary += '\nDelivery: GitHub monitors STATUS=Approve. The Mac can sleep after sync. Company-local windows and daily limits apply.'
     elif result['setup_blockers']:
         summary += '\nSender setup: ' + '; '.join(result['setup_blockers'])
+    if facts.get('kind') == 'Cold Outreach':
+        from .outreach_copy import observation
+        summary += ('\nPersonalization basis: ' + (observation(facts) or
+                    'No short source quotation available; review the saved evidence before approving.') +
+                    '\nRelevant offer: ' + ('Figma email designs from your client briefs and brand guidelines.'
+                    if facts.get('type') == 'Agency' else 'Figma email designs from supplied copy, assets and brand guidelines.') +
+                    '\nInterpretation: published services/products establish relevance only. Hiring, interest, budget and workload are unknown unless separately evidenced.')
     props = {'Research Check': {'select': {'name': check}},
              'Review Summary': {'rich_text': rich(summary)},
              'Match Score': {'number': result['score']},
