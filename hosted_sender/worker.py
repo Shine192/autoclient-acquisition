@@ -159,6 +159,9 @@ class Worker:
 
     def hold(self,item,reason):
         self.q.hold(item['id'],'Preflight failed; review the Notion record')
+        from acquisition_agent.incidents import cloud_record
+        import os
+        cloud_record(self.q.db,'followup' if item.get('stage',0) else 'preflight',item['lead_id'],[reason],observation=os.getenv('GITHUB_RUN_ID') or str(time.time()),run_id=os.getenv('GITHUB_RUN_ID'),page_id=self.q.db.get('lead_'+item['lead_id'])['data']['notion_page_id'])
         if item.get('stage',0):
             page=self.q.db.get('lead_'+item['lead_id'])['data']['notion_page_id']
             prefix='Follow-up '+str(item['stage'])
@@ -232,6 +235,9 @@ class Worker:
                 if plan['sent_attempts']>=plan['maximum_sends']:continue
             if control.get('days',{}).get(day,0)>=cfg['daily_limit']:continue
             if control.get('last_attempt',0) and dispatch-control['last_attempt']<cfg['minimum_interval_seconds']:continue
+            from acquisition_agent.incidents import cloud_record
+            import os
+            cloud_record(self.q.db,'followup' if item.get('stage',0) else 'preflight',item['lead_id'],[],observation=os.getenv('GITHUB_RUN_ID') or str(dispatch))
             self.report('durable_claim')
             self.q.claim(item['id'], dispatch, settings_hash(self.s), cfg['daily_limit'],
                          cfg['minimum_interval_seconds'], cfg['timezone'])
@@ -282,6 +288,9 @@ class Worker:
         except StateError:raise
         except (ValueError,KeyError,TypeError) as exc:
             from .health import safe_error
+            from acquisition_agent.incidents import cloud_record
+            import os
+            cloud_record(self.q.db,'notion_sync',item['lead_id'],[exc],observation=os.getenv('GITHUB_RUN_ID') or str(time.time()),run_id=os.getenv('GITHUB_RUN_ID'))
             def pending(tx):
                 saved=tx.get('outbox_'+key)
                 saved.update(notion_sync_pending=True,notion_sync_error=safe_error(exc))
@@ -295,6 +304,8 @@ class Worker:
                          notion_sync_state='synced' if visible else 'archived')
             tx.put('outbox_'+key,saved)
         self.q.db.transaction(synced)
+        from acquisition_agent.incidents import cloud_record
+        cloud_record(self.q.db,'notion_sync',item['lead_id'],[])
         return True
 
     def _sync_one(self, key):

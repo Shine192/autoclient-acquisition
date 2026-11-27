@@ -52,6 +52,7 @@ class Panel:
         self.busy = threading.Lock()
         self.stopping = threading.Event()
         self.client_lock = threading.Lock()
+        self.monitor_lock = threading.Lock()
         store = open_store(state)
         store.db.execute("UPDATE panel_tasks SET status='Interrupted',result=? WHERE status IN ('Running','Queued')", (json.dumps({'error':'Panel stopped before completion. Inspect state before retrying.'}),))
         store.db.commit()
@@ -61,6 +62,33 @@ class Panel:
         from .discovery import source_config
         prefs,profile,exclusions,sending = tuple(read_json(self.root / ('config/' + name + '.json')) for name in ('preferences','profile','exclusions','sending'))
         return source_config(prefs,self.root),profile,exclusions,sending
+
+    def errors(self, refresh=False):
+        from . import error_center
+        store=open_store(self.state)
+        try:
+            if not refresh:return error_center.snapshot(store)
+            if not self.monitor_lock.acquire(blocking=False):raise ValueError('The error log is already refreshing. Wait briefly.')
+            try:
+                from .providers import Notion
+                prefs,_,_,_=self.settings()
+                return error_center.refresh(store,prefs,Notion() if os.getenv('NOTION_TOKEN') else None)
+            finally:self.monitor_lock.release()
+        finally:store.db.close()
+
+    def log_failure(self, path, error=None):
+        import sqlite3
+        from . import incidents
+        from .incidents import record
+        step={'/api/draft':'drafting','/api/review-approve':'approval','/api/target-session':'research',
+              '/api/client-workflow':'notion_sync','/api/error-center/refresh':'monitoring'}.get(path,'setup')
+        store=None
+        try:
+            store=open_store(self.state)
+            record(store,step,'dashboard', [error] if error is not None else [])
+        except (sqlite3.Error,OSError):incidents.LOCAL_LOGGING_AVAILABLE=False
+        finally:
+            if store is not None:store.db.close()
 
     def snapshot(self):
         store = open_store(self.state)
@@ -262,8 +290,14 @@ class Panel:
                 if kind in ('automatic-research','target-import'):result['session_id']=session['id']
                 status='Needs attention' if result.get('errors') or result.get('notion_sync',{}).get('errors') else 'Paused' if result.get('paused') else 'Completed'
                 store.db.execute('UPDATE panel_tasks SET status=?,result=? WHERE id=?',(status,json.dumps(result),task_id));store.db.commit()
+                from .incidents import task_result
+                task_result(store,kind,task_id,result,observation=task_id+'-'+status)
         except Exception as exc:
-            store.db.execute("UPDATE panel_tasks SET status='Failed',result=? WHERE id=?",(json.dumps({'error':str(exc)[:300]}),task_id));store.db.commit()
+            failed={'error':str(exc)[:300]}
+            if payload.get('session_id'):failed['session_id']=payload['session_id']
+            store.db.execute("UPDATE panel_tasks SET status='Failed',result=? WHERE id=?",(json.dumps(failed),task_id));store.db.commit()
+            from .incidents import task_result
+            task_result(store,kind,task_id,dict(failed,error=exc),observation=task_id+'-Failed')
         finally:
             store.db.close()
             self.busy.release()
@@ -315,10 +349,11 @@ def make_server(panel, port=0):
                 return self.reply(303,'','text/plain',{'Location':'/','Set-Cookie':'shine_panel='+panel.key+'; HttpOnly; SameSite=Strict; Path=/'})
             if not self.authorized():return self.reply(401,{'error':'Open the private URL printed by the dashboard command'})
             try:
+                if parts.path=='/api/error-center':return self.reply(200,panel.errors())
                 if parts.path=='/api/client-workflow':return self.reply(200,panel.client_workflow())
                 if parts.path=='/api/state':return self.reply(200,panel.snapshot())
                 if parts.path=='/api/lead':return self.reply(200,panel.detail(parse_qs(parts.query).get('id',[''])[0]))
-                assets={'/workflow.js':('workflow.js','text/javascript'),'/':('index.html','text/html'),'/app.js':('app.js','text/javascript'),'/style.css':('style.css','text/css')}
+                assets={'/errors.js':('errors.js','text/javascript'),'/workflow.js':('workflow.js','text/javascript'),'/':('index.html','text/html'),'/app.js':('app.js','text/javascript'),'/style.css':('style.css','text/css')}
                 if parts.path in assets:
                     name,media=assets[parts.path];return self.reply(200,(ASSETS/name).read_text(),media)
                 return self.reply(404,{'error':'Not found'})
@@ -334,21 +369,28 @@ def make_server(panel, port=0):
                 payload=json.loads(self.rfile.read(length))
                 if not isinstance(payload,dict):raise ValueError('Expected JSON object')
                 path=urlsplit(self.path).path
+                def action(handler,status=200):
+                    result=handler()
+                    panel.log_failure(path)
+                    return self.reply(status,result)
+                if path=='/api/error-center/refresh':return action(lambda:panel.errors(refresh=True))
                 if path=='/api/pause':
                     if type(payload.get('paused')) is not bool:raise ValueError('paused must be true or false')
                     store=open_store(panel.state)
                     try:store.pause(payload['paused'])
                     finally:store.db.close()
                     return self.reply(200,{'paused':payload['paused']})
-                if path=='/api/client-workflow':return self.reply(200,panel.client_workflow(payload))
-                if path=='/api/task':return self.reply(202,panel.submit(payload.get('kind'),payload))
-                if path=='/api/campaign':return self.reply(200,panel.campaign(payload))
-                if path=='/api/target-session':return self.reply(200,panel.target_session(payload))
-                if path=='/api/review-approve':return self.reply(200,panel.approve_review(payload))
-                if path=='/api/draft':return self.reply(200,panel.save_draft(payload))
-                if path=='/api/preferences':return self.reply(200,panel.preferences(payload))
+                if path=='/api/client-workflow':return action(lambda:panel.client_workflow(payload))
+                if path=='/api/task':return action(lambda:panel.submit(payload.get('kind'),payload),202)
+                if path=='/api/campaign':return action(lambda:panel.campaign(payload))
+                if path=='/api/target-session':return action(lambda:panel.target_session(payload))
+                if path=='/api/review-approve':return action(lambda:panel.approve_review(payload))
+                if path=='/api/draft':return action(lambda:panel.save_draft(payload))
+                if path=='/api/preferences':return action(lambda:panel.preferences(payload))
                 return self.reply(404,{'error':'Not found; sending and authorization changes are unavailable here'})
-            except (ValueError,KeyError,TypeError) as exc:return self.reply(400,{'error':str(exc)[:300]})
+            except (ValueError,KeyError,TypeError) as exc:
+                panel.log_failure(urlsplit(self.path).path,exc)
+                return self.reply(400,{'error':str(exc)[:300]})
             except Exception:return self.reply(500,{'error':'Local action failed. Check the task list.'})
     return ThreadingHTTPServer(('127.0.0.1',port),Handler)
 

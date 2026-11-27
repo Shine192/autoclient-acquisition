@@ -10,7 +10,7 @@ work enquiries remain distinct from business introductions.
 
 Both AI handoff and automatic research share this writing structure: verified
 observation → relevant Figma/Klaviyo contribution → portfolio → selected offered
-price → one interest question. Aim for 90–130 words before signature, in short
+price → one low-pressure reply invitation. Aim for 90–130 words before signature, in short
 paragraphs. No generic praise, invented results, unsupported diagnoses, fake
 urgency, or fabricated prior conversation. Initial cold subjects cannot use a
 misleading Re:/Fwd: prefix.
@@ -19,7 +19,11 @@ Offer one small paid Figma test from client-supplied copy/assets, with desktop
 and mobile layouts. Scope and timing are agreed before starting. Klaviyo building
 is separately quoted. Do not promise availability or unverified performance.
 
-The website is linked as View my portfolio. Selected quotes remain separate
+Introduce the website with “You can review my recent work and learn more about
+my services here: [View my portfolio](the selected portfolio URL).”
+Close with “If this fits your needs, feel free to reply and we can discuss a
+small paid test email, with no commitment to ongoing work.” Use this as the
+single invitation in both the main email and follow-up. Selected quotes remain separate
 from client budget. No extra review step is added. The single no-reply follow-up
 after two business days adds practical scope, instead of repeating the opener.
 Any reply stops it; actual responses remain review-only.

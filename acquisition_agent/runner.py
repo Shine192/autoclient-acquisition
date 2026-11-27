@@ -19,6 +19,8 @@ def run(store, root, hours=6, once=False):
     from .providers import Notion
     if not 6<=hours<=168:raise ValueError('Discovery interval must be 6–168 hours')
     def log(kind,result):
+        from .incidents import task_result
+        task_result(store,'sync' if kind.startswith('notion') else kind,'agent',result,observation=now())
         record={'at':now(),'kind':kind,'result':result}
         with (store.root/'agent-events.jsonl').open('a') as handle:handle.write(json.dumps(record,ensure_ascii=False)+'\n')
         print(json.dumps(record,ensure_ascii=False),flush=True)

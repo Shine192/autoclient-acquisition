@@ -485,6 +485,8 @@ def main():
         print("Stopped; no email sent.", file=sys.stderr)
         return 130
     except (ValueError, OSError, KeyError) as exc:
+        from .incidents import record
+        record(store,{'sync-notion':'notion_sync','generate':'drafting','poll-replies':'replies','delivery-worker':'sending','send-once':'sending','discover':'research'}.get(args.command,'setup'),'command',[exc])
         print("Error: " + str(exc)[:300], file=sys.stderr)
         return 1
     return 0
